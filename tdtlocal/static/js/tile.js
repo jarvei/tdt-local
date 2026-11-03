@@ -4,6 +4,7 @@ import { postStt } from './api.js';
 import { el, fillLogo } from './dom.js';
 import { audioTarget, audioTouched } from './lib/adbreak.js';
 import { chainFor } from './audio.js';
+import { samplesToCues } from './lib/inband.js';
 import { buildPlan, originNote, usesHls } from './lib/plan.js';
 import { atresEmbed } from './lib/embeds.js';
 import { ytEmbed } from './lib/youtube.js';
@@ -30,6 +31,7 @@ const MAX_NETWORK_RETRIES = 3;
  * @property {(f: string) => boolean} canPlayFmt
  * @property {(tile: Tile, text: string) => void} spoke - text transcribed on this tile (for voice alerts)
  * @property {(tile: Tile) => void} fragSeen - the player asked for a segment (an ad-break marker may be waiting for it)
+ * @property {(tile: Tile, action: number) => void} inbandAd - an in-band SCTE-35 marker is due: 1 starts a break, -1 ends it
  * @property {(tile: Tile, v: {v: number, m: boolean}) => void} adVolume - the user changed the audio during an ad break
  * @property {(tile: Tile, value: {v: number, m: boolean}) => void} adVolume - the user changed the volume of the active tile during an ad break
  *   break starts or ends (and how long it had been showing programme)
@@ -103,6 +105,8 @@ export class Tile {
     this.liveText = '';
     this.subTimer = null;
     this.fragStart = new Map();
+    this.inbandTimers = new Set(); // armed in-band cues, cleared when the tile stops
+    this.inbandSeen = new Set(); // cues already scheduled (a break sends several PRIV frames)
     this.track = null;
     this.subEl = el('div', 'tile-sub');
     this.subEl.hidden = true;
@@ -130,6 +134,42 @@ export class Tile {
 
   audioWanted() {
     return audioTarget(this.host.volume(), this.duck, this.i === this.host.focus());
+  }
+
+  // ---- SCTE-35 in-band (ID3 PRIV): the exact instant of the break, from the sample's own timestamp
+
+  /** hls.js found ID3 in a segment: keep the SCTE-35 marks and arm them for when the picture reaches them. */
+  inband(samples) {
+    for (const cue of samplesToCues(samples)) {
+      if (this.inbandSeen.has(cue.key)) continue;
+      this.inbandSeen.add(cue.key);
+      if (this.inbandSeen.size > 120) this.inbandSeen.delete(this.inbandSeen.values().next().value);
+      this.armInband(cue);
+    }
+  }
+
+  /**
+   * Arm one change by clock, the way AdMute posts its `Action`: the sample says when it plays, so the
+   * timeout is the gap to that instant, not the playlist's lag. If the player is paused (or its clock
+   * drifts), the gap is measured again when the timer fires instead of muting early.
+   */
+  armInband(cue) {
+    const left = cue.at - this.video.currentTime;
+    if (left < -5) return; // already played without us: the playlist fallback owns it
+    if (left <= 0.05) {
+      this.host.inbandAd(this, cue.action);
+      return;
+    }
+    const rate = this.video.playbackRate > 0 ? this.video.playbackRate : 1;
+    const timer = setTimeout(() => {
+      this.inbandTimers.delete(timer);
+      if (cue.at - this.video.currentTime > 0.25) {
+        this.armInband(cue); // paused or behind: wait for the picture, do not apply early
+        return;
+      }
+      this.host.inbandAd(this, cue.action);
+    }, (left / rate) * 1000);
+    this.inbandTimers.add(timer);
   }
 
   syncAudio() {
@@ -333,6 +373,9 @@ export class Tile {
     if (this.tag && this.stt) postStt(this.tag, false);
     this.tag = '';
     this.fragStart.clear();
+    for (const timer of this.inbandTimers) clearTimeout(timer);
+    this.inbandTimers.clear();
+    this.inbandSeen.clear();
     this.clearSub();
     this.hideAdFrame();
     this.setAdFlag(false);
@@ -573,6 +616,7 @@ export class Tile {
     this.hls = hls;
     hls.on(Hls.Events.MANIFEST_PARSED, startPlay);
     hls.on(Hls.Events.FRAG_LOADING, (_e, d) => this.noteFrag(d.frag));
+    hls.on(Hls.Events.FRAG_PARSING_METADATA, (_e, d) => this.inband(d.samples));
     hls.on(Hls.Events.FRAG_BUFFERED, () => { s.retries = 0; success(); });
     hls.on(Hls.Events.ERROR, (_e, d) => {
       if (d.response && d.response.code) this.failCode = d.response.code;

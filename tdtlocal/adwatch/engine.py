@@ -215,7 +215,12 @@ def state_of(events: list[Event], now: float, mediaset: bool = False) -> tuple[s
         elif css_class in ENDS:
             if mediaset and state == "publicidad" and left and left > 0:
                 continue  # the DAI closed its break before the broadcast did (earlyMediasetIn)
-            state, since, left = "programa", _iso(event.get("seen") or now), None
+            # The playlist runs ahead of the picture: a CUE-IN seen now has not reached the screen yet.
+            # Wait for it the same way a START waits for its START-DATE (AdMute's measured lag).
+            at = _epoch(event.get("start")) or event.get("seen")
+            if at is not None and at > now:
+                continue
+            state, since, left = "programa", _iso(at or now), None
     return state, since, left
 
 

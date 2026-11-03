@@ -1,6 +1,6 @@
 # Catálogo TDT Spain y auto-mute
 
-Estado: en curso. Este documento fija el diseño y lo que ya está hecho, para poder retomarlo.
+Estado: implementado. Este documento fija el diseño y lo que ya está hecho, para poder retomarlo.
 
 ## Lo que se pide
 
@@ -12,7 +12,8 @@ Estado: en curso. Este documento fija el diseño y lo que ya está hecho, para p
    estado `programa`/`publicidad` y segundos restantes).
 3. La reacción es el **auto-mute de `~/Proyectos/tdtspain-admute/build/src/com/tv/viewer/probe/AdMute.java`**:
    silenciar al empezar el corte y devolver el sonido al terminar, con su lag, su duración efectiva,
-   sus márgenes de cierre y su red de seguridad. Sin intervención del usuario.
+   sus márgenes de cierre y su red de seguridad. Sin intervención del usuario. La vía exacta es la
+   misma que la de la app: el SCTE-35 **in-band** del segmento, aplicado en el `pts` de la muestra.
 
 ## Decisiones
 
@@ -31,7 +32,7 @@ Estado: en curso. Este documento fija el diseño y lo que ya está hecho, para p
 |---|---|---|
 | directo | 160 | URL `m3u8` tal cual |
 | `youtube` | 15 | URL de YouTube (el visor la convierte a embed) |
-| `stream11` | 17 | `https://www.atresplayer.com/embed/live/<slug>/` (iframe + puente) |
+| `stream11` | 17 | HLS de Atresplayer (`tdtspain.py`), con su SCTE-35 dentro; sin iframe ni puente |
 | `stream1` RTVE | 11 | HLS fijo `rtvelivestream.rtve.es/rtvesec/...` (la1, la2, 24h, tdp, clan, can/*, cat/*) |
 | `stream10` Mediaset | 14 | login anónimo → `playback/check` → `pubads` → `stream_manifest` (HLS en claro) |
 | `stream12` Dailymotion | 4 | `geo.dailymotion.com/video/<id>.json` → `qualities.auto[0].url` |
@@ -39,7 +40,30 @@ Estado: en curso. Este documento fija el diseño y lo que ya está hecho, para p
 | `stream14` Aragón | 1 | GraphQL `eu.next.mediastream.co` → `accessToken` → `mdstrm` |
 | `stream2` DMAX | 1 | no emite (`msgerror` en el catálogo): solo web |
 
-## Auto-mute (reglas de AdMute.java)
+## Auto-mute
+
+Hay dos caminos. El in-band manda cuando el canal lo trae; la playlist es el respaldo y la única vía
+en Mediaset, RTVE, U7D y los reproductores incrustados.
+
+### 1. SCTE-35 in-band (Atresmedia, el mismo segundo)
+
+- El `splice_insert`/`time_signal` viaja en **ID3 `PRIV`** dentro del PID de metadatos 0x23 del
+  segmento, con el `pts` de la muestra. La app Media3 lo recibe en `Player.Listener.onMetadata`; en
+  el navegador lo entrega hls.js en `FRAG_PARSING_METADATA`.
+- `tdtlocal/static/js/lib/inband.js` lee los marcos ID3, se queda con los `PRIV` cuyo propietario
+  contiene `scte35` y decodifica el `splice_info_section`: `splice_insert` (con
+  `out_of_network`) y `time_signal` (por su `segmentation_type`: `0x22` Break Start, `0x23`
+  Break End, y los `0x30`-`0x37`/`0x40`-`0x45`). Un Program Start (`0x10`) no es publicidad.
+- El `pts` de la muestra ya está en la línea de tiempo del reproductor (hls.js lo usa tal cual como
+  inicio de la cue). `tile.js` arma un `setTimeout` con `pts - currentTime`, como el `Handler` de
+  AdMute; `adbreak.js` aplica el cambio al llegar. Si el reproductor está pausado o el reloj se
+  desvía, al disparar se vuelve a medir la distancia en vez de silenciar antes.
+- Los dos `PRIV` del mismo corte (splice_insert y time_signal) se deduplican. Una marca que ya pasó
+  más de 5 s se deja al respaldo de la playlist.
+- El `Break End` cierra en su muestra exacta. Si no llega, la playlist sigue siendo la red de
+  seguridad y el `cue-out` le presta su duración.
+
+### 2. Playlist (respaldo y Mediaset)
 
 - Sondeo de la playlist de la **variante** (no el master), cada 2 s; Mediaset cada 1 s sobre la
   playlist DAI.
@@ -50,6 +74,9 @@ Estado: en curso. Este documento fija el diseño y lo que ya está hecho, para p
   sesión DAI ya entrega el tiempo restante).
 - Duración efectiva = `DURATION`/`CUE-OUT:<s>`/`out_<ms>` menos el retraso ya consumido.
 - Cierre por duración: margen 18 s (Atresmedia) / 5 s (Mediaset). El cierre bueno es el `CUE-IN`.
+- El `CUE-IN` **también espera al lag**: la lista va por delante de la imagen, así que un `CUE-IN`
+  recién visto todavía no ha llegado a pantalla. `state_of()` solo cierra cuando su hora
+  (`START-DATE` o el instante en que se vio) ha entrado en el reloj de la imagen (`now - lag`).
 - Si el `CUE-IN` del DAI llega antes que la emisión (`earlyMediasetIn`), no se devuelve el sonido
   hasta que se cumpla la duración prevista.
 - `MAX_MUTE_MS = 900000` como red de seguridad.
@@ -66,11 +93,12 @@ Estado: en curso. Este documento fija el diseño y lo que ya está hecho, para p
 
 ## Verificado
 
-- `python3 -m unittest discover -s tests -t .` → 445 pruebas.
-- `node --test` → 124.
-- `ruff check` y `ruff format --check` → limpio.
+- `python3 -m unittest discover -s tests -t .` → 444 pruebas.
+- `node --test` → 118.
 - Servidor real con el catálogo: 248 canales de TDT Spain, La 1 por su HLS de RTVE, Antena 3 por el embed de
   Atresplayer, Cuatro por el DAI de Mediaset (playlist y proxy, 200) y Real Betis TV por la página del club.
+- In-band: parser probado con los `PRIV` reales del segmento `448407824.ts` de Antena 3 (los mismos fixtures de
+  `AdMuteTest`) y con el `time_signal` `0x22`/`0x23`. Falta verlo en un corte real de Atresmedia en el navegador.
 - Auto-mute de punta a punta en el navegador con una playlist de prueba (`tests`/scratch): a los ~18 s del `SCTE35-OUT`
   el estado pasa a `publicidad` y el `<video>` queda `muted`; al cumplirse la duración (30 s + 18 de margen) llega el
   `cue-in` y el sonido vuelve a los ~3 s (`END_MARGIN`).
@@ -85,4 +113,6 @@ Estado: en curso. Este documento fija el diseño y lo que ya está hecho, para p
   del reproductor y la publicidad se silencia desde el servidor. El puente se retiró del proyecto.
 - `stream2` (DMAX) y `stream14`/`posturl` de canales ocultos no tienen resolvedor porque no hay ninguno visible que
   los use.
+- El camino in-band solo existe donde el canal mete ID3 `PRIV` en el segmento (Atresmedia). Mediaset, RTVE, U7D y
+  los embeds siguen por playlist; YouTube y el iframe de Atresplayer no se pueden silenciar desde aquí.
 

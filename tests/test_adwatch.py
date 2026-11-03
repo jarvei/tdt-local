@@ -140,6 +140,16 @@ class StateTests(unittest.TestCase):
         state, _, _ = engine.state_of(found, start + 60)
         self.assertEqual(state, "programa")
 
+    def test_a_cue_in_is_timed_for_the_picture_too(self):
+        """The playlist runs ahead of the player: the end must wait the same lag as the start."""
+        found = events(playlist() + "#EXT-X-CUE-IN\nseg2.ts\n")
+        cue_in = found[-1]
+        cue_in["seen"] = at("2026-11-03T10:00:50Z")
+        seen = cue_in["seen"]
+        # state_of() is given the picture's clock: now - lag. 10 s of lag still to go, then none.
+        self.assertEqual(engine.state_of(found, seen - 8)[0], "publicidad")
+        self.assertEqual(engine.state_of(found, seen)[0], "programa")
+
     def test_mediaset_ignores_an_early_in(self):
         text = playlist() + "#EXT-X-CUE-IN\nseg2.ts\n"
         found = events(text, mediaset=True)

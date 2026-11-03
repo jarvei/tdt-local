@@ -40,7 +40,8 @@ navegador ──HTTP──▶ server.Handler ──▶ App ─┬─ Store      
 | `ai.py` | preselección de candidatos, petición al modelo y **validación** de su respuesta |
 | `stt.py` | `Transcriber`, `Whisper` (cliente/lanzador), `PcmStream` y `Tap` |
 | `scte.py` | marcas de anuncios SCTE-35, funciones puras: decodificador de `splice_info_section`, etiquetas HLS, PID en MPEG-TS, `emsg` |
-| `scte_watch.py` | `ScteLog` (registro en `scte.jsonl`) y `ScteWatcher` (observa lo que pasa por el proxy y explora canales) |
+| `scte_watch.py` | `ScteLog` (registro en `scte.jsonl`), `ScteWatcher` (sigue el canal sintonizado y explora canales) y la publicación de cada cambio de estado |
+| `adwatch/` | motor de publicidad portado de `tdt-datos`: `hls`/`dash`/`scte35`/`id3` y `engine.Vigilance`, que sigue una variante y mantiene el estado con el lag del directo |
 | `scte_routes.py` | rutas `/api/scte*`: leer, exportar JSON/CSV, explorar ahora y vaciar |
 | `ads.py` | qué recibe la página para reaccionar a una pausa (`meta.ads`), el origen de la web que se muestra (`frame-src`) y si una web se deja incrustar |
 | `logos.py` | caché de logos con detección de tipo por firma |
@@ -102,7 +103,11 @@ clásico que define `Hls` antes.
   Los ajustes y la matemática del igualador (pura y probada) están en `lib/audio.js`.
 - `adbreak.js` — la reacción a una pausa de anuncios: guarda la pausa en curso y sus temporizadores. Qué hacer con cada
   marca (cuándo llega, si es tardía, qué audio corresponde, qué canal) lo decide `lib/adbreak.js`, que es puro y está
-  probado. El audio se cambia en la casilla (`Tile.setDuck`), sin tocar el volumen guardado.
+  probado. El audio se cambia en la casilla (`Tile.setDuck`), sin tocar el volumen guardado. Recibe tanto las marcas
+  de la playlist como los avisos in-band ya temporizados.
+- `lib/inband.js` — el SCTE-35 in-band: lee los marcos ID3 `PRIV` que hls.js entrega en `FRAG_PARSING_METADATA`,
+  decodifica el `splice_info_section` y devuelve el instante de la muestra. `tile.js` arma el cambio a ese `pts` y
+  `adbreak.js` lo aplica: es la vía exacta (el mismo segundo); la playlist es el respaldo.
 - `dom.js`, `store.js`, `api.js` — utilidades de DOM, de almacenamiento y de red.
 
 ## Ajustes

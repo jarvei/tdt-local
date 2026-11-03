@@ -6,7 +6,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); e
 ## [Sin publicar]
 
 **La lista de canales pasa a ser la de la app TDT Spain y la publicidad se silencia sola**, con el motor de
-`tdt-datos` y la misma lógica de la app (`AdMute`).
+`tdt-datos`, la misma lógica de la app (`AdMute`) y su SCTE-35 in-band.
 
 ### Funciones
 - **Catálogo de TDT Spain** (`canalesv4.json`, 248 canales visibles) en lugar de la lista de TDTChannels para la tele:
@@ -28,6 +28,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); e
 - **Auto-mute como la app TDT Spain**: el estado se evalúa con el retardo del directo (18 s; 0 en Mediaset), la pausa
   se cierra con el `CUE-IN` o al cumplirse la duración (margen de 18 s, 5 s en Mediaset) y el `CUE-IN` temprano del DAI
   se ignora. Activo por defecto; se apaga en Ajustes.
+- **Mute y unmute en el mismo segundo**: el SCTE-35 in-band (ID3 `PRIV` del segmento) se decodifica en la página y el
+  cambio se arma con el `pts` de la muestra, como el `Action` de AdMute. El `Break End` cierra exacto; la playlist
+  queda de respaldo y su `CUE-IN` ahora espera al lag de la imagen en vez de devolver el sonido en cuanto aparece.
 - **`POST /api/scte/watch`**: la página avisa al servidor del canal que tiene puesto y el servidor lo sigue hasta que
   cambie.
 
