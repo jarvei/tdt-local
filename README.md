@@ -71,9 +71,9 @@ comprobado en condiciones simuladas o con pocos casos reales. **📋 Pendiente**
 | Ecualizador de diez bandas con preajustes | 🧪 Probado poco · con señales sintéticas |
 | Ajustes de sonido globales y propios de cada canal | ✅ Hecho |
 | Aviso fijo «PUBLICIDAD» sobre la imagen mientras dura una pausa | ✅ Hecho |
-| Guía (programa en emisión y siguiente) e iconos de los canales de Atresmedia, desde una guía comunitaria | 🧪 Probado poco · se ha visto la guía de los seis canales y sus iconos; depende de un archivo de terceros |
+| Guía (programa en emisión y siguiente) e iconos de los canales de Atresmedia, desde una guía comunitaria | 🧪 Probado poco · se ha visto la guía de varios canales y sus iconos; depende de un archivo de terceros |
 | Quitar un canal propio desde su fila de la lista o desde el botón bajo la imagen | ✅ Hecho |
-| Mediaset dentro de TDT local | 📋 Pendiente · su reproductor prohíbe incrustarse; hoy sus canales abren su web |
+| Mediaset dentro de TDT local (Telecinco, Cuatro, FDF, Divinity, Energy, Be Mad, Boing y los de Infinity) | ✅ Hecho · sesión DAI, HLS en claro y probado con un corte real |
 | Sacar el enlace de un directo desde tu navegador y añadirlo como canal propio (`tools/capturar-directo.js`) | 🧪 Probado poco · con una página de ejemplo, no con la web real de ninguna cadena |
 | Ventana propia en lugar de abrir el navegador | 🧪 Probado poco · es la aplicación de escritorio de arriba |
 | Controles propios del reproductor: calidad, pistas de audio, estadísticas, «volver al directo», retroceso | 📋 Pendiente |
@@ -175,7 +175,7 @@ conexión para descargar las listas; después se usa la última copia guardada e
   anuncios). Hay que permitir esos dominios para ver con anuncios, o entrar con una cuenta Premium. Hace falta activar el
   plugin en Ajustes ▸ Plugins. No imita la web de la cadena ni llama a su API: lee lo
   que la página muestra, y lo que sale es la selección de la propia web (unas decenas de programas por canal, no toda
-  la parrilla). El aviso de cookies de esa ventana es tuyo. Mediaset no está: su reproductor no se puede incrustar.
+  la parrilla). El aviso de cookies de esa ventana es tuyo. Mediaset no tiene U7D aquí.
 - **Registro** (Ajustes ▸ Registro, solo en la aplicación de escritorio): lo que ha pasado en la aplicación (arranque,
   plugins, ventana de exploración, servidor, errores de la página y fallos de red de los reproductores de dentro, una
   vez por dirección y sin parámetros) para leerlo, filtrarlo, copiarlo o guardarlo en un archivo y enviarlo si algo
@@ -196,17 +196,17 @@ conexión para descargar las listas; después se usa la última copia guardada e
   emisión y el siguiente, la barra de progreso y la guía completa del canal, como en los demás. Se puede desactivar, o
   cambiar de fuente, en los ajustes.
 
-  **Un canal, varias fuentes:** si ya tienes un canal propio con el mismo nombre (por ejemplo «La Sexta» con un enlace de
-  stream), el reproductor de Atresplayer se añade como **otra fuente suya** en vez de crear un canal repetido, y lo mismo al
-  pegar un enlace con el nombre de un canal que ya tienes. Al abrirlo se prueba primero el stream (con proxy: subtítulos,
-  marcas de anuncios, igualador de sonido…) y, si no responde (por ejemplo, un enlace caducado), se pasa solo al reproductor
-  de Atresplayer, que va siempre al final y nunca se queda como favorito. Con los botones numerados bajo el nombre del
+  **Un canal, varias fuentes:** si pegas un enlace con el nombre de un canal que ya tienes, se añade como **otra fuente
+  suya** en vez de crear un canal repetido. Al abrirlo se prueba primero el stream (con proxy: subtítulos, marcas de
+  anuncios, igualador de sonido…) y, si no responde (por ejemplo, un enlace caducado), se pasa al reproductor de
+  Atresplayer, que va siempre al final y nunca se queda como favorito. Con los botones numerados bajo el nombre del
   canal puedes elegir la fuente a mano.
-  Para otro canal de Atresplayer, pega a mano `https://www.atresplayer.com/embed/live/<canal>/`.
-- **Mediaset:** sus canales (Telecinco, Cuatro, FDF, Divinity, Energy, Be Mad y Boing) salen en la lista como «solo web»,
-  con un botón que abre su página. Mediaset Infinity prohíbe que su reproductor se muestre dentro de otras páginas
-  (`frame-ancestors`) y eso se respeta; si su reproductor da «Se ha producido un error · DAI», suele ser un bloqueador de
-  anuncios (por ejemplo los escudos de Brave) cortando su módulo de publicidad.
+  Para un canal de Atresplayer que no esté en el catálogo, pega a mano `https://www.atresplayer.com/embed/live/<canal>/`.
+- **Mediaset:** sus canales (Telecinco, Cuatro, FDF, Divinity, Energy, Be Mad, Boing y los de Infinity) se resuelven
+  al sintonizar con una sesión anónima y el DAI de Mediaset, que devuelve un HLS en claro; se ven dentro, por el proxy,
+  y la publicidad se silencia como en los demás. Mediaset prohíbe incrustar su **reproductor**, pero esto no es un
+  iframe: es su propio HLS. Si su web da «Se ha producido un error · DAI», suele ser un bloqueador de anuncios (por
+  ejemplo los escudos de Brave) cortando su módulo de publicidad.
 - **Quitar un canal propio:** cada canal propio tiene una ✕ a la derecha de su fila (y el botón «Quitar canal» bajo la
   imagen, que sirve para el canal activo). Pide confirmación y, si el canal estaba en una casilla, la vacía. Los enlaces directos `.m3u8`
   de Atresplayer llevan un permiso **atado a la IP** desde la que se sacaron: si el navegador con el que se copian sale
@@ -256,8 +256,8 @@ El botón **Ajustes** (abajo, en el panel de canales) abre la configuración. To
   catálogo para **descargar modelos** de Whisper con progreso, cancelación y verificación SHA-256, y un botón
   «Comprobar» que dice qué falta (ffmpeg, el programa, el modelo, el servidor).
 - **Listas y guía:** cada cuántas horas se actualizan, comprobar los streams tras actualizar, guía de programación,
-  la **guía extra** para tus canales propios sin guía (desactivada hasta que añades los de Atresmedia) y, en «avanzado», las
-  direcciones de origen (listas, guías y guía extra).
+  la **guía extra** para los canales sin guía en las listas (desactivada por defecto; hace falta para la guía de
+  Atresmedia y para canales propios) y, en «avanzado», las direcciones de origen (listas, guías y guía extra).
 
 Los ajustes solo se pueden cambiar desde el propio equipo (aunque uses `--lan`): `whisper-server` es un programa
 que se ejecuta y no debe poder elegirlo cualquiera de tu red.
@@ -327,8 +327,7 @@ Cada canal se reproduce como la app resuelve su directo:
 |---|---|---|
 | Directo HLS | la mayoría | la URL `m3u8` del catálogo, por el proxy local |
 | YouTube | informativos internacionales | el reproductor incrustado de YouTube |
-| Atresplayer | Antena 3, laSexta, Neox, Nova, Mega y Atreseries | su propio HLS, resuelto al sintonizar y servido por el proxy: el SCTE-35 viene dentro y el motor lo silencia |
-| Atresplayer (temáticos) | Multicine, Clásicos, Comedia, Kidz, Flooxer… | su reproductor incrustado (`/embed/live/<canal>/`); su sonido y su publicidad son suyos y no se pueden controlar desde aquí |
+| Atresplayer | los 17 canales: Antena 3, laSexta, Neox, Nova, Mega, Atreseries y los temáticos (Multicine, Clásicos, Comedia, Kidz, Flooxer…) | su propio HLS, resuelto al sintonizar y servido por el proxy: el SCTE-35 viene dentro y el motor lo silencia |
 | RTVE | La 1, La 2, 24h, Teledeporte, Clan y las versiones de Canarias y Cataluña | HLS público de `rtvelivestream.rtve.es`, sin DRM |
 | Mediaset | Telecinco, Cuatro, FDF y los de Infinity | sesión anónima → `playback/check` → DAI de Google, que da un HLS en claro |
 | Dailymotion | Melilla TV, Navarra TV, Bolivia TV, 7 Rioja… | el JSON del reproductor |
@@ -460,8 +459,8 @@ Para avisar de un problema de seguridad, mira [SECURITY.md](SECURITY.md).
 
 ## Límites
 
-- Hay canales sin directo abierto en la lista (p. ej. Cuatro y Telecinco): salen como «solo web» y
-  se ofrece el enlace a su página. No se intenta saltar ningún DRM ni geobloqueo.
+- Hay canales sin directo que el navegador pueda abrir (los cinco de ETB que solo emiten DASH, o DMAX, que ya no emite
+  por internet): salen como «solo web» y se ofrece el enlace a su página. No se intenta saltar ningún DRM ni geobloqueo.
 - Los streams cambian de URL a menudo. Si uno falla, prueba la otra fuente (botones 1, 2…) o
   actualiza la lista.
 - Whisper falla con música y con emisiones fMP4/CMAF; cada casilla transcrita gasta algo de GPU.
