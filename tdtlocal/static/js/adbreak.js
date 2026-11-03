@@ -103,30 +103,9 @@ export function adsEvents(events) {
   for (const ev of events) {
     const tile = host.focusTile();
     const watching = tile && tile.c ? tile.c.id : '';
-    // A break already started in-band only borrows the playlist's duration for its safety net: the
-    // in-band end (or this cue-in) closes it.
-    if (current && current.inband && ev.channel === current.channelId
-      && (ev.kind === 'cue-out' || ev.kind === 'cue-out-cont')) {
-      clearTimeout(current.timer);
-      current.timer = setTimeout(() => finish(false), (remainingOf(ev, cfg).seconds + END_MARGIN) * 1000);
-      continue;
-    }
     const what = reactionTo(ev, cfg, { channelId: current ? current.channelId : watching, inBreak: !!current });
     if (what === 'start' && watching) schedule(tile, ev, 'start', (behind) => begin(tile, ev, behind));
     else if (what === 'end') schedule(current.tile, ev, 'end', () => finish(false));
-  }
-}
-
-/**
- * An in-band SCTE-35 cue is due: the sample has reached the picture, so apply it now. `action` is 1
- * for a break start and -1 for its end. It goes through the same reaction as a playlist marker.
- */
-export function adsInband(tile, action) {
-  if (!cfg || !host || !tile || !tile.c) return;
-  if (action > 0) {
-    if (!current) begin(tile, { channel: tile.c.id, kind: 'cue-out', duration: 0, inband: true }, 0);
-  } else if (action < 0 && current && current.tile === tile) {
-    finish(false);
   }
 }
 
@@ -135,7 +114,7 @@ function begin(tile, ev, behind) {
   const channel = tile.c;
   const b = {
     tile, channel, channelId: channel.id, before: { ...host.volume() }, audioTouched: false, tuned: false, timer: 0,
-    park: null, inband: !!ev.inband,
+    park: null,
   };
   current = b;
   if (cfg.flag) tile.setAdFlag(true);

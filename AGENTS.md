@@ -39,40 +39,40 @@ origen HTTP falso y una aplicación sobre un directorio temporal.
 - `tdtlocal/store.py` — canales, EPG, salud y canales propios (un `RLock`).
 - `tdtlocal/tdtspain.py` — catálogo y resolvedores de los directos.
 - `tdtlocal/scte.py`, `scte_watch.py`, `scte_routes.py` — marcas SCTE-35, registro y API.
-- `tdtlocal/adwatch/` — motor de publicidad portado de `tdt-datos`: HLS, DASH, SCTE-35, ID3 y
-  `engine.Vigilance`, que sigue una variante y mantiene el estado con el lag del directo.
+- `tdtlocal/adwatch/` — motor de publicidad portado de `tdt-datos`: HLS, DASH, SCTE-35, `admode` y
+  `engine.Vigilance`, que sigue el master y su primera variante, y mantiene el estado con el lag del directo.
 - `tdtlocal/static/js/tile.js` — una casilla: `<video>`, hls.js, cadena de fuentes y subtítulos.
 - `tdtlocal/static/js/adbreak.js` — la reacción a una pausa; `lib/adbreak.js` son las decisiones puras.
-- `tdtlocal/static/js/lib/inband.js` — lector del SCTE-35 in-band (ID3 `PRIV`).
 - `tdtlocal/static/js/lib/` — lógica pura, probada en `tests/js/`.
 - `tests/` — pruebas de Python; `tests/js/` — pruebas del navegador.
 
 ## Publicidad: cómo funciona
 
-Hay dos caminos y el in-band manda cuando existe:
+Solo hay un camino, el de la app (`AdMute`):
 
-1. **In-band (Atresmedia, exacto).** El `splice_insert`/`time_signal` viaja en ID3 `PRIV` dentro del
-   PID 0x23 del segmento. hls.js lo entrega en `FRAG_PARSING_METADATA`; cada muestra trae `pts`, que
-   ya está en la línea de tiempo del reproductor (hls.js lo usa tal cual como inicio de la cue).
-   `lib/inband.js` parsea el ID3 y el `splice_info_section`; `tile.js` arma un `setTimeout` con
-   `pts - currentTime` y `adbreak.js` aplica el cambio al llegar. Si el reproductor se pausa o se
-   desvía, al disparar se vuelve a medir la distancia en vez de silenciar antes. `Break End 0x23` y
-   `splice_insert` con `out_of_network=0` cierran en su muestra exacta.
-2. **Playlist (respaldo y Mediaset).** `adwatch.engine.Vigilance` sondea el master y su **primera**
-   variante cada 2 s (1 s en Mediaset), como `firstVariant` de AdMute —las marcas de Atresmedia van
-   ahí, no en las de más calidad—, decodifica los tags y publica `cue-out`/`cue-in` ya sincronizados con la imagen:
-   `now - lag`, con `LAG_S = 18` en Atresmedia y 0 en Mediaset. La duración declarada es la red de
-   seguridad (margen 18 s / 5 s); el `CUE-IN` es el cierre bueno y también espera al lag. Mediaset
-   añade el `admode` de su DAI y la regla de `earlyMediasetIn`.
+1. Al sintonizar, `app.watch_ads` resuelve el canal y `adwatch.engine.Vigilance` lee el **master**.
+2. Se queda con su **primera variante** (`firstVariant()` de AdMute), no con la de más calidad: en
+   Atresmedia las marcas van en la 405000 y las variantes altas van limpias. Después sondea esa lista
+   cada 2 s (1 s en Mediaset).
+3. Decodifica los tags (`#EXT-X-DATERANGE` con `SCTE35-OUT`/`SCTE35-IN`, `SCTE35-CMD`,
+   `#EXT-X-CUE-OUT`/`CUE-IN`, `X-ASSET-URI` y el `admode` de Mediaset) y decide el estado como lo ve
+   el espectador: `state_of()` evalúa `ahora - lag`, con `LAG_S = 18` en Atresmedia y 0 en Mediaset.
+4. Cuando el estado cambia para la imagen, publica `cue-out`/`cue-in` con `apply_now`; la página
+   silencia o devuelve el sonido en ese instante. El cierre bueno es el `CUE-IN`; la duración con
+   margen (18 s / 5 s) es la red de seguridad. El `CUE-IN` temprano del DAI de Mediaset se ignora
+   (`earlyMediasetIn`).
 
 Reglas al tocar esto:
 
+- No vuelvas a `_best_variant()` ni a un lector in-band: las variantes de más calidad de Atresmedia no
+  llevan marcas y el navegador elige una de ellas. La primera variante es la única que sirve.
 - No vuelvas al detector por firma de audio: se midió y daba falsos positivos (7 de 15 minutos en
   ficción). El proyecto `tdtspain-admute` lo descartó por eso.
-- Cualquier cambio de comportamiento lleva prueba; el parser in-band tiene sus fixtures reales en
-  `tests/js/inband.test.mjs`.
+- Cualquier cambio de comportamiento lleva prueba en `tests/test_adwatch.py` (y en `tests/js/` si
+  toca la reacción).
 - El mute lo aplica la página (`Tile.setDuck`), no el servidor. El servidor solo decide.
-- Un canal sin ID3 (Mediaset, RTVE, U7D, YouTube, embeds) no puede usar el camino in-band.
+- Los canales que no publican SCTE-35 en su lista (RTVE, U7D, YouTube y los embeds de Atresplayer)
+  no se pueden silenciar; no hay una segunda vía que inventar.
 
 ## Convenciones
 
@@ -88,6 +88,6 @@ Reglas al tocar esto:
 
 - `README.md` — qué hace y cómo se usa.
 - `docs/ARCHITECTURE.md` — módulos, flujo del proxy y de la interfaz.
-- `docs/TDTSPAIN-Y-ADMUTE.md` — catálogo, resolvedores y las dos vías del auto-mute.
+- `docs/TDTSPAIN-Y-ADMUTE.md` — catálogo, resolvedores y el algoritmo del auto-mute.
 - `CHANGELOG.md` y `ROADMAP.md` — cambios y pendientes.
 - `CONTRIBUTING.md` — entorno, estilo y envío de cambios.

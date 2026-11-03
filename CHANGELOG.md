@@ -6,14 +6,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); e
 ## [Sin publicar]
 
 **La lista de canales pasa a ser la de la app TDT Spain y la publicidad se silencia sola**, con el motor de
-`tdt-datos`, la misma lógica de la app (`AdMute`) y su SCTE-35 in-band.
+`tdt-datos` y la misma lógica de la app (`AdMute`).
 
 ### Funciones
 - **Catálogo de TDT Spain** (`canalesv4.json`, 248 canales visibles) en lugar de la lista de TDTChannels para la tele:
   grupos, logos, `epgid` y los 17 canales de Atresmedia, los 14 de Mediaset y las autonómicas y locales que la otra
   lista no traía. La radio sigue en `RADIO.md`.
 - **Resolvedores del catálogo**, en `tdtlocal/tdtspain.py`: HLS de RTVE sin DRM, HLS de Atresplayer para los 17 canales
-  (con su SCTE-35 dentro), DAI de Mediaset (login anónimo → `playback/check` → `pubads`), Dailymotion, páginas con el
+  (con su SCTE-35 en la primera variante), DAI de Mediaset (login anónimo → `playback/check` → `dai.google.com`), Dailymotion, páginas con el
   directo dentro y el GraphQL de Aragón TV. Los enlaces con tokens se resuelven al sintonizar (`/api/tdtspain/play`), no
   al arrancar.
 - **La publicidad de Atresmedia también se silencia desde el servidor**: los 17 canales (los seis principales y los once
@@ -23,18 +23,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); e
   ya no hace falta para nada, porque los 17 canales van por su HLS y los silencia el servidor. La reacción a las pausas
   se queda con lo que publica el vigilante; los iframes que queden (una grabación o un canal sin id) no se pueden
   silenciar desde aquí y la página lo dice.
-- **Motor de publicidad de `tdt-datos`** (`tdtlocal/adwatch/`): sigue la variante de la playlist, decodifica SCTE-35,
+- **Motor de publicidad de `tdt-datos`** (`tdtlocal/adwatch/`): sigue el master y su primera variante, decodifica SCTE-35,
   entiende `CUE-OUT`/`CUE-IN`, los intersticiales de HLS, el ID3 `admode` de Mediaset y el `EventStream` del MPD.
 - **Auto-mute como la app TDT Spain**: el estado se evalúa con el retardo del directo (18 s; 0 en Mediaset), la pausa
   se cierra con el `CUE-IN` o al cumplirse la duración (margen de 18 s, 5 s en Mediaset) y el `CUE-IN` temprano del DAI
   se ignora. Activo por defecto; se apaga en Ajustes.
-- **Mute y unmute en el mismo segundo**: el SCTE-35 in-band (ID3 `PRIV` del segmento) se decodifica en la página y el
-  cambio se arma con el `pts` de la muestra, como el `Action` de AdMute. El `Break End` cierra exacto; la playlist
-  queda de respaldo y su `CUE-IN` ahora espera al lag de la imagen en vez de devolver el sonido en cuanto aparece.
+- **Mute y unmute en el mismo segundo**: el vigilante lee la primera variante del master, que va por delante de la
+  imagen, y publica `cue-out`/`cue-in` cuando el estado cambia para lo que se ve; la página los aplica al instante
+  (`apply_now`). El `CUE-IN` ahora espera al lag de la imagen en vez de devolver el sonido en cuanto aparece.
 - **`POST /api/scte/watch`**: la página avisa al servidor del canal que tiene puesto y el servidor lo sigue hasta que
   cambie.
 
 ### Correcciones
+- **Se retira el lector in-band**: no era el algoritmo de `AdMute` y no se dispara con la variante que elige hls.js
+  (la de más calidad va sin marcas). Las marcas se leen de la primera variante del master.
 - **Mediaset por `dai.google.com`**: el nombre antiguo del DAI (`pubads.g.doubleclick.net`) lo bloquean las DNS de
   filtrado de anuncios (resuelve a `0.0.0.0`), así que Telecinco, FDF, Energy, Cuatro y el resto daban «sin señal».
 - **El vigilante lee la primera variante del master**, como `firstVariant` de AdMute: en Atresmedia las marcas van en

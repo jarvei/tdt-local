@@ -27,8 +27,8 @@ bienvenidas como *issues*.
 - [x] Igualador de volumen y ecualizador, globales o por canal.
 - [x] Reacción a las pausas de anuncios (silenciar, bajar el sonido, cambiar de canal, mostrar una web).
 - [x] Marcas de anuncios SCTE-35: detección, registro y exportación.
-- [x] **Auto-mute de la publicidad** con el motor de `tdt-datos`, el SCTE-35 in-band de la app TDT Spain (mute y
-  unmute en el `pts` de la muestra) y la playlist como respaldo (lag, duración, márgenes y `admode` de Mediaset).
+- [x] **Auto-mute de la publicidad** con el motor de `tdt-datos` y la lógica de `AdMute`: primera variante del
+  master, retardo del directo, duración, márgenes, `CUE-IN` y `admode` de Mediaset.
 - [x] Catálogo de canales de la app TDT Spain, con sus resolvedores (RTVE, Atresplayer, Mediaset, Dailymotion y webs).
 
 ## Guía de programación

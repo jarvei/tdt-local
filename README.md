@@ -22,9 +22,8 @@ lo demás funciona igual.
   Mediaset por su DAI (que devuelve HLS en claro), Dailymotion, páginas con el reproductor dentro y el GraphQL de
   Aragón TV. Los enlaces con tokens se resuelven al sintonizar, no al arrancar.
 - **Auto-mute de la publicidad**, activo por defecto, con el motor de `tdt-datos` y la lógica de `AdMute` de la app
-  TDT Spain: lee el SCTE-35 in-band (ID3 `PRIV`) y arma mute y unmute en el `pts` de la muestra —el mismo segundo—;
-  si el canal no lo trae, sondea la variante con el retardo del directo (18 s; 0 en Mediaset), la duración con margen
-  y el cierre por `CUE-IN`.
+  TDT Spain: sigue el master y su **primera variante** (donde Atresmedia publica las marcas), evalúa el estado con el
+  retardo del directo (18 s; 0 en Mediaset) y cierra con el `CUE-IN` o con la duración y su margen.
 - **Sin puente de Atresplayer**: los canales de Atresmedia se reproducen por su HLS y los silencia el servidor, así
   que el userscript/extensión y su protocolo se retiraron. Tampoco está el botón «Añadir Atresmedia», porque el
   catálogo ya los trae.
@@ -72,7 +71,7 @@ más ideas).
 | Marcas de anuncios SCTE-35: detección con el motor de `tdt-datos`, registro y exportación (JSON y CSV) | ✅ Hecho · comprobado con streams reales |
 | Aviso en pantalla cuando aparece una marca nueva | ✅ Hecho |
 | Marcas SCTE-35 dentro del vídeo (PID del MPEG-TS, eventos `emsg`) | 🧪 Probado poco · solo con datos sintéticos |
-| **Auto-mute de la publicidad**, como la app TDT Spain | ✅ Hecho · corte simulado, corte real de Mediaset y los `PRIV` reales de Antena 3; falta un corte real de Atresmedia en el navegador |
+| **Auto-mute de la publicidad**, como la app TDT Spain | ✅ Hecho · cortes reales de Mediaset y Atresmedia detectados; mute de punta a punta con una lista de prueba |
 | Durante la publicidad: cambiar a otro canal y volver | 🧪 Probado poco · con un directo simulado |
 | Durante la publicidad: mostrar una web sobre la imagen, con comprobación previa | 🧪 Probado poco · con un directo simulado |
 | Durante la publicidad: respetar o deshacer lo que toques | 🧪 Probado poco · con un directo simulado |
@@ -135,9 +134,8 @@ pip install ruff pytest && ruff check . && ruff format --check .
   con cabeceras `Origin`/`Referer` opcionales que el proxy envía con la lista y con cada segmento. No se salta DRM ni
   geobloqueos: solo cabeceras. Para no copiar el enlace a mano hay un
   [fragmento para tu navegador](#sacar-el-enlace-de-un-directo-desde-tu-navegador).
-- **Marcas de anuncios (SCTE-35) y auto-mute**, activado por defecto: lee la marca in-band del segmento o sigue la
-  lista de reproducción del canal que estás viendo, silencia el reproductor durante la pausa y lo devuelve al
-  terminar. Avisa en pantalla y guarda cada hallazgo en `data/scte.jsonl` (se puede descargar en JSON o CSV). Ver
+- **Marcas de anuncios (SCTE-35) y auto-mute**, activado por defecto: sigue el master y su primera variante del
+  canal que estás viendo, silencia el reproductor durante la pausa y lo devuelve al terminar. Avisa en pantalla y guarda cada hallazgo en `data/scte.jsonl` (se puede descargar en JSON o CSV). Ver
   [más abajo](#marcas-de-anuncios-y-auto-mute).
 - **Sonido** (botón *Sonido*): **igualador de volumen** (sube lo que suena bajo y baja lo que suena alto hasta un
   nivel que eliges) y **ecualizador** de 10 bandas con preajustes. Ambos se pueden fijar para todos los canales o solo
@@ -272,17 +270,14 @@ Dónde mira:
   estado: `#EXT-X-DATERANGE` con `SCTE35-OUT`/`SCTE35-IN` (que se **decodifican**: `splice_insert`, `time_signal` y
   sus descriptores de segmentación), `#EXT-X-CUE-OUT`/`CUE-OUT-CONT`/`CUE-IN`, los anuncios intercalados de HLS
   (`X-ASSET-URI`), el ID3 `admode` que Mediaset deja en `X-MESSAGE-DATA` y el `EventStream` SCTE-35 del MPD.
-- **SCTE-35 in-band (lo primero que se mira):** en Atresmedia la marca viaja también dentro del segmento, en ID3
-  `PRIV` (`splice_insert`/`time_signal`). hls.js entrega la muestra con su `pts` en la línea de tiempo del
-  reproductor, y la página arma el mute y el unmute con un temporizador a ese instante: caen en el mismo segundo que
-  la imagen, no cuando el servidor ve el tag. El `Break End` cierra en su muestra exacta; si no llega, manda la
-  playlist. La lógica está en `tdtlocal/static/js/lib/inband.js`.
-- **El retardo del directo (respaldo y Mediaset):** la lista va por delante de la imagen (unos 18 s en Atresmedia),
+- **El retardo del directo:** la lista va por delante de la imagen (unos 18 s en Atresmedia),
   así que el estado se evalúa como era hace ese retardo; en Mediaset es 0 porque la sesión DAI ya entrega el tiempo
   restante. Al empezar la pausa, el servidor escribe en el registro un `cue-out` ya sincronizado con lo que ves y la
   página silencia el reproductor; al terminar (por el `CUE-IN` —que también espera al lag— o al cumplirse la
   duración, con 18 s de margen y 5 s en Mediaset) escribe el `cue-in` y devuelve el sonido. Si el `CUE-IN` del DAI
-  llega antes que la emisión, no se hace caso hasta que se cumple la duración prevista.
+  llega antes que la emisión, no se hace caso hasta que se cumple la duración prevista. No hay una segunda vía
+  in-band: el navegador elige la variante de más calidad, que en Atresmedia va sin marcas; las marcas se leen de la
+  primera variante, como hace `AdMute`.
 - **Exploración activa:** cada `scte_interval` segundos (60 por defecto) se descarga la lista de los canales que
   indiques, o de todos los que tienen directo, y se analiza igual. No se tocan los marcados como caídos.
 - **Dentro del vídeo** (opcional): se baja el principio (256 KB) de un segmento por canal y se busca el PID de datos
@@ -296,24 +291,22 @@ descargarlo (JSON o CSV) o vaciarlo.
 Lo que no hace: no corta la publicidad ni la sustituye; solo silencia el reproductor o cambia lo que ves mientras dura
 la pausa, y no analiza la señal de radiofrecuencia de la TDT (solo los streams que enlazan las listas). Una marca solo
 vive unos segundos en la lista de reproducción, así que la exploración cada minuto puede perder pausas cortas; el canal
-que tienes puesto se sigue cada segundo. Que un canal no muestre marcas no prueba que no las use: muchas cadenas
+que tienes puesto se sigue cada 2 s (1 s en Mediaset). Que un canal no muestre marcas no prueba que no las use: muchas cadenas
 insertan los anuncios en el servidor y no dejan rastro.
 
 ## Durante la publicidad
 
 **Ajustes ▸ Durante la publicidad** permite que la página reaccione cuando el canal que estás viendo entra en una
-pausa de anuncios. La página lee el SCTE-35 in-band cuando el canal lo trae y, si no, el servidor sigue su playlist,
-detecta la marca y avisa ya sincronizado con la imagen (descuenta el retardo del directo: 18 s en Atresmedia, 0 en
-Mediaset).
+pausa de anuncios. El servidor sigue el master y su primera variante, detecta la marca y avisa ya sincronizado con
+la imagen (descuenta el retardo del directo: 18 s en Atresmedia, 0 en Mediaset).
 
 - **Aviso fijo:** un rótulo rojo «PUBLICIDAD» sobre la imagen mientras dura la pausa (se puede desactivar).
 - **Con el sonido:** no tocarlo, silenciarlo o bajarlo a un porcentaje del volumen que tengas.
 - **Con la imagen:** dejarla, cambiar a otro canal (por nombre o identificador) o mostrar una web sobre la imagen.
   Algunas webs no permiten que se muestren dentro de otra página: el botón **Comprobar** de los ajustes lo avisa. Solo
   se permite esa dirección en la política de seguridad de la página.
-- **Cuándo termina:** con el `Break End` in-band en su muestra exacta o, si no llega, al llegar la marca de fin de
-  pausa; como red de seguridad, cuando pasa la duración que dice la marca más el margen (18 s en Atresmedia, 5 s en
-  Mediaset). Si la marca no dice cuánto dura, se supone el tiempo que indiques (120 s por defecto). Al cambiar de canal, en vista simple el canal original **sigue en segundo plano** (en otra casilla, fuera
+- **Cuándo termina:** con el `CUE-IN` (o la marca de fin de pausa) o, si no llega, al cumplirse la duración que dice
+  la marca más el margen (18 s en Atresmedia, 5 s en Mediaset). Si la marca no dice cuánto dura, se supone el tiempo que indiques (120 s por defecto). Al cambiar de canal, en vista simple el canal original **sigue en segundo plano** (en otra casilla, fuera
   de la vista y silenciado): así se sigue viendo cuándo acaba la pausa y se vuelve a él al instante. En multivisión se
   cambia la propia casilla y se vuelve por tiempo.
 - **Pausas cortas:** se ignoran las que dicen durar menos de unos segundos (10 por defecto).

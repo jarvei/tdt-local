@@ -103,11 +103,8 @@ clásico que define `Hls` antes.
   Los ajustes y la matemática del igualador (pura y probada) están en `lib/audio.js`.
 - `adbreak.js` — la reacción a una pausa de anuncios: guarda la pausa en curso y sus temporizadores. Qué hacer con cada
   marca (cuándo llega, si es tardía, qué audio corresponde, qué canal) lo decide `lib/adbreak.js`, que es puro y está
-  probado. El audio se cambia en la casilla (`Tile.setDuck`), sin tocar el volumen guardado. Recibe tanto las marcas
-  de la playlist como los avisos in-band ya temporizados.
-- `lib/inband.js` — el SCTE-35 in-band: lee los marcos ID3 `PRIV` que hls.js entrega en `FRAG_PARSING_METADATA`,
-  decodifica el `splice_info_section` y devuelve el instante de la muestra. `tile.js` arma el cambio a ese `pts` y
-  `adbreak.js` lo aplica: es la vía exacta (el mismo segundo); la playlist es el respaldo.
+  probado. El audio se cambia en la casilla (`Tile.setDuck`), sin tocar el volumen guardado. Recibe las marcas ya
+  sincronizadas que publica el vigilante (`ScteWatcher`).
 - `dom.js`, `store.js`, `api.js` — utilidades de DOM, de almacenamiento y de red.
 
 ## Ajustes
