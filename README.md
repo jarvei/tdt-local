@@ -13,13 +13,6 @@ Solo biblioteca estándar de Python: no hay nada que instalar con `pip`. El asis
 opcionales y usan programas que ya tengas (un servidor compatible con OpenAI, ffmpeg y whisper.cpp); sin ellos, todo
 lo demás funciona igual.
 
-> **In English:** a fork of [cibernicola/tdt-local](https://github.com/cibernicola/tdt-local), a local web viewer for
-> Spanish digital TV and radio. TV comes from the **TDT Spain** app's catalogue (`canalesv4.json`) and radio from the
-> public [TDTChannels](https://github.com/LaQuay/TDTChannels) lists. Python standard library only; HLS playback through
-> a local proxy, programme guide (XMLTV), 4-channel multi-view, optional local AI assistant and live subtitles. Ad
-> breaks are detected with the `tdt-datos` engine and muted automatically, the way TDT Spain's app does it. The
-> interface is in Spanish.
-
 ## Qué cambia respecto al proyecto original
 
 - **Catálogo de canales de TDT Spain** en lugar de `TELEVISION.md`: 248 canales visibles, con grupos, logos y
