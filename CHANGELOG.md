@@ -32,6 +32,19 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); e
   cambie.
 
 ### Correcciones
+- **La resolución de un canal con receta se cachea 120 s** (con un cerrojo por canal): la reproducción y el
+  vigilante de publicidad comparten la misma URL en vez de hacer dos logins/DAI por sintonía. En Mediaset, la segunda
+  petición pasa de ~1,4 s a ~1 ms.
+- **`_epoch` respeta el desfase horario**: usa `datetime.fromisoformat`, así que un `START-DATE` con `+02:00` ya no
+  desplaza el estado dos horas.
+- **El vigilante no acumula memoria**: `seen` se recorta a 2000 marcas (y `_seen` del registro, por antigüedad), y la
+  lista de eventos sigue acotada a 500.
+- **Backoff de 5 a 60 s** cuando falla la lectura de la lista, con renovación forzada de la sesión DAI al fallar.
+- **`/api/scte/watch` responde 502** si el resolvedor falla, en vez de cerrar la conexión sin JSON.
+- **El vigilante elige la primera fuente HLS** del canal, no la primera a secas (un canal con YouTube o un embed
+  delante ya se sigue).
+- **El respaldo DAI por segmento** ya no se pierde cuando la playlist trae `DATERANGE` neutros.
+- **`Vigilance` tiene un cerrojo** para que el estado y el tiempo restante se lean juntos.
 - **Los iconos de los canales del catálogo de TDT Spain ya se ven**: el caché de logos acepta SVG (48 canales, sobre
   todo RTVE y 3Cat) y AVIF (el que devuelve `graph.facebook.com` a quien pide `image/*`), y sube el tope de 2 MB para
   los logos de ETB. El SVG se sirve con `Content-Security-Policy: sandbox` y se rechaza si trae scripts. Quedan 2 de
