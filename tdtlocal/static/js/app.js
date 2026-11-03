@@ -1,5 +1,5 @@
 // TDT local: page controller (channel list, player deck, multi-view, subtitles and data loading).
-import { adsEvents, adsExternal, adsTuned, adsUserVolume, fragSeen, initAds, setAds } from './adbreak.js';
+import { adsEvents, adsTuned, adsUserVolume, fragSeen, initAds, setAds } from './adbreak.js';
 import { api, postJson } from './api.js';
 import { initAssistant, isAssistantOpen, toggleAssist } from './assistant.js';
 import { initDialogs, removeOwn } from './dialogs.js';
@@ -852,7 +852,6 @@ const host = {
   spoke: checkAlerts,
   fragSeen,
   adVolume: adsUserVolume,
-  adExternal: adsExternal,
   audioFx,
 };
 

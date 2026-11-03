@@ -7,7 +7,6 @@ import { test } from 'node:test';
 import { discover, parsePattern, readEnabled, readPlugin, scriptsFor, writeEnabled } from '../../desktop/lib/plugins.js';
 
 const REPO = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
-const PLAYER = 'https://www.atresplayer.com/embed/live/lasexta/';
 
 function folder(root, name, manifest, files = { 'a.js': 'window.A = 1;' }) {
   const dir = join(root, name);
@@ -143,13 +142,4 @@ test('the state of the plugins is saved and nothing is on if there is none', () 
   } finally { done(); }
 });
 
-test('the bridge with Atresplayer is a valid plugin of the app, for the player and nothing else', () => {
-  const plugin = readPlugin(join(REPO, 'tools', 'puente-atresplayer'));
-  assert.deepEqual(plugin.problems, []);
-  const on = new Set([plugin.id]);
-  const [hit] = scriptsFor([plugin], on, PLAYER, false);
-  assert.deepEqual(hit.scripts.map((s) => s.file), ['audio-chain.js', 'puente.user.js']);
-  assert.deepEqual(scriptsFor([plugin], on, 'https://www.atresplayer.com/directos/lasexta/', false), []);
-  assert.deepEqual(scriptsFor([plugin], on, 'https://evil.example/embed/live/x', false), []);
-  assert.deepEqual(scriptsFor([plugin], on, 'http://127.0.0.1:8788/', true), []);
-});
+

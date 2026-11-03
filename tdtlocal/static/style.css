@@ -29,6 +29,33 @@
     --bad: #e0705e;
     --unk: #6c726c;
   }
+  /* The Facebook profiles are dark pictures with a white background: on the dark theme they show as a
+     white box. They are turned into a monochrome negative and the white is screened out. The brand
+     logos come on transparent and keep their shape: they are only made monochrome. The SVG logos of
+     RTVE and 3Cat are already white on transparent, so they are left alone. */
+  .row .logo:not(.thumb) img.fb.ld,
+  .tile-cover-logo img.fb.ld {
+    background: transparent;
+    filter: grayscale(1) invert(1);
+    mix-blend-mode: screen;
+  }
+  .row .logo:not(.thumb) img.brand.ld,
+  .tile-cover-logo img.brand.ld {
+    background: transparent;
+    filter: grayscale(1) brightness(1.35);
+  }
+  .row .logo:not(.thumb) img.svg.ld,
+  .tile-cover-logo img.svg.ld {
+    background: transparent;
+  }
+}
+@media (prefers-color-scheme: light) {
+  /* The SVG logos are white: on the light theme they are inverted to black, which is their "positive". */
+  .row .logo:not(.thumb) img.svg.ld,
+  .tile-cover-logo img.svg.ld {
+    background: transparent;
+    filter: invert(1);
+  }
 }
 
 * { box-sizing: border-box; }

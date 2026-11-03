@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -9,6 +10,7 @@ import urllib.error
 from collections.abc import Callable
 from typing import Any
 
+from . import tdtspain
 from .config import Config
 from .net import Net
 from .parser import parse_markdown
@@ -52,7 +54,11 @@ class FeedSyncer:
             body, response_headers = self.net.fetch_trusted(self._url(kind), headers, limit=MAX_MARKDOWN)
             if len(body) > MAX_MARKDOWN:
                 raise ValueError("el fichero es demasiado grande")
-            channels = parse_markdown(body.decode("utf-8", "replace"), kind)
+            if kind == "tv" and tdtspain.looks_like(body):
+                payload = json.loads(body.decode("utf-8", "replace"))
+                channels = tdtspain.parse_catalog(payload)
+            else:
+                channels = parse_markdown(body.decode("utf-8", "replace"), kind)
             if len(channels) < minimum:
                 raise ValueError(f"solo {len(channels)} elementos: formato inesperado, se conserva la lista anterior")
         except urllib.error.HTTPError as exc:

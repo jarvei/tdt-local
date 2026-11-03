@@ -1,9 +1,14 @@
 # Aplicación de escritorio con ventana propia y plugins (esbozo de diseño)
 
 > **Estado: en `desktop/`, empaquetada desde la 1.3.0.** Ventana de Electron con el servidor congelado dentro, bandeja,
-> plugins (con el puente de Atresplayer como primero) y Registro. Los instaladores la llevan; sigue siendo joven (sin
-> firmar, sin actualizaciones automáticas, probada a fondo solo en Windows). Se puede probar desde el código
-> ([Probarlo](#probarlo)); el resto de este documento es el diseño y marca lo que falta.
+> plugins y Registro. Los instaladores la llevan; sigue siendo joven (sin firmar, sin actualizaciones automáticas,
+> probada a fondo solo en Windows). Se puede probar desde el código ([Probarlo](#probarlo)); el resto de este documento
+> es el diseño y marca lo que falta.
+>
+> **El puente de Atresplayer ya no se distribuye.** Los 17 canales de Atresmedia se reproducen por su HLS y la
+> publicidad la silencia el servidor, así que el plugin `puente-atresplayer` se retiró. Lo que el documento dice del
+> puente se conserva como historia del diseño; el cargador de plugins sigue igual y el único plugin que queda es
+> `atresplayer-u7d`.
 
 ## Por qué
 

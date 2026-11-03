@@ -8,6 +8,7 @@ from tdtlocal.config import PACKAGE_DIR, Config
 from .helpers import ServerCase, fixture, make_tv_markdown
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>'
 LIVE = "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:6,\nseg0.ts\n"
 
 
@@ -384,15 +385,38 @@ class LogoTests(ServerCase):
     def setUp(self):
         super().setUp()
         self.origin.routes["/ok.png"] = (200, {}, PNG)
+        self.origin.routes["/ok.svg"] = (200, {}, SVG)
+        self.origin.routes["/evil.svg"] = (
+            200,
+            {},
+            b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+        )
         self.origin.routes["/page.png"] = (200, {}, b"<html>not an image</html>")
-        self.origin.routes["/big.png"] = (200, {}, PNG + b"x" * 1_100_000)
+        self.origin.routes["/big.png"] = (200, {}, PNG + b"x" * 2_100_000)
         for name in ("ok", "page", "big", "gone"):
             self.app.store.logo_urls.add(self.origin.url(f"/{name}.png"))
+        for name in ("ok", "evil"):
+            self.app.store.logo_urls.add(self.origin.url(f"/{name}.svg"))
 
     def logo(self, name):
         from urllib.parse import quote
 
         return self.request("GET", f"/logo?u={quote(self.origin.url(f'/{name}.png'), safe='')}")
+
+    def svg_logo(self, name):
+        from urllib.parse import quote
+
+        return self.request("GET", f"/logo?u={quote(self.origin.url(f'/{name}.svg'), safe='')}")
+
+    def test_svg_logos_are_served_sandboxed(self):
+        status, headers, body = self.svg_logo("ok")
+        self.assertEqual((status, headers["content-type"], body), (200, "image/svg+xml", SVG))
+        self.assertEqual(headers["content-security-policy"], "sandbox")
+        self.assertEqual(headers["x-content-type-options"], "nosniff")
+
+    def test_an_svg_with_a_script_is_refused(self):
+        status, _, _ = self.svg_logo("evil")
+        self.assertEqual(status, 404)
 
     def test_logo_is_fetched_cached_and_typed(self):
         status, headers, body = self.logo("ok")
@@ -446,7 +470,13 @@ class LogoTests(ServerCase):
         self.assertEqual(sniff_image(b"\xff\xd8\xff\xe0abc"), ("image/jpeg", ".jpg"))
         self.assertEqual(sniff_image(b"GIF89a"), ("image/gif", ".gif"))
         self.assertEqual(sniff_image(b"RIFF\x00\x00\x00\x00WEBPVP8 "), ("image/webp", ".webp"))
+        self.assertEqual(sniff_image(b"\x00\x00\x00\x1cftypavif" + b"\x00" * 8), ("image/avif", ".avif"))
+        self.assertEqual(sniff_image(SVG), ("image/svg+xml", ".svg"))
+        self.assertEqual(
+            sniff_image(b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>'), ("image/svg+xml", ".svg")
+        )
         self.assertIsNone(sniff_image(b"<svg onload=alert(1)>"))
+        self.assertIsNone(sniff_image(b"<svg><script>alert(1)</script></svg>"))
 
 
 class StaticAssetsExistTests(ServerCase):

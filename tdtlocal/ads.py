@@ -47,8 +47,8 @@ def web_origin(config: Config) -> str:
 def payload(config: Config) -> dict[str, Any] | None:
     """The reaction settings for the page, or ``None`` when there is nothing to react with.
 
-    Breaks are found by the watcher (streams) or by the bridge script (Atresplayer's embedded player): the page
-    only gets events from the ones that are on. It needs at least one thing to do.
+    Breaks are found by the server, which follows the playlist of the channel being watched: the page only gets
+    the events. It needs at least one thing to do.
     """
     if not config.ad_enabled:
         return None

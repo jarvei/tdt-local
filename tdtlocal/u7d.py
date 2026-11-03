@@ -25,6 +25,8 @@ from zoneinfo import ZoneInfo
 if TYPE_CHECKING:
     from .net import Net
 
+from .util import normalize
+
 DAYS = 7
 CACHE_SECONDS = 600  # a listing changes slowly
 MAX_ITEMS = 400
@@ -64,9 +66,11 @@ def is_u7d(url: str | None) -> bool:
 def channels(live: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """List entries (``kind: "u7d"``) for the channels with catch-up, with the logo of their live channel."""
     by_id = {ch["id"]: ch for ch in live}
+    # The live list may come from another catalogue (TDT Spain) whose ids differ: the name is the stable key.
+    by_name = {normalize(ch.get("name", "")): ch for ch in live if ch.get("name")}
     out = []
     for key, chan in CHANNELS.items():
-        base = by_id.get(chan.logo_id) or {}
+        base = by_id.get(chan.logo_id) or by_name.get(normalize(chan.name)) or {}
         out.append(
             {
                 "id": "u7d-" + key,

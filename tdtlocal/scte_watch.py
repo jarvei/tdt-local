@@ -1,10 +1,13 @@
-"""The SCTE-35 watcher: finds ad-break markers in the streams, keeps a persistent log and reports new ones.
+"""Ad-break watcher: follows the channel being watched and publishes when a break starts and ends.
 
-Two sources feed the log (see ``scte.py`` for what counts as a marker):
+Two things feed the log:
 
-* **what you watch**: every playlist the proxy serves is looked at on its way through. It costs nothing;
-* **an active scan** of the channels you list, or of all of them, every ``scte_interval`` seconds. It can also
-  download the first bytes of one segment per stream to look for the MPEG-TS PID of SCTE-35.
+* **the live watcher** (``ads.engine``, the same detection the operator's ``tdt-datos`` project uses):
+  while a channel is tuned, its media playlist is polled, its markers are decoded and the state is
+  kept. The change to *ad break* and back to *programme* is written to the log already timed for the
+  picture — the playlist runs ahead of the player, so it is evaluated as of ``now - lag``, the way
+  the TDT Spain app's ``AdMute`` does it.
+* **what the proxy serves**, for channels nobody is watching: markers are read on their way through.
 
 The log lives in ``scte.jsonl`` (one JSON object per line) under the data folder.
 """
@@ -21,6 +24,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from . import tdtspain
+from .adwatch import MEDIASET_LAG_S, Vigilance
+from .adwatch.engine import INTERVAL_S, LAG_S, MARGIN_S, MEDIASET_INTERVAL_S, MEDIASET_MARGIN_S
 from .config import Config
 from .custom import is_youtube
 from .health import HLS_URL
@@ -38,13 +44,10 @@ SAMPLE_BYTES = 262144  # enough for the PAT and PMT, which repeat every ~100 ms
 MAX_PLAYLIST = 4_000_000
 MAX_TARGETS = 800
 MAX_REMEMBERED = 5000
-# How long the same marker is not reported again. Its identity is stable (event id, or the segment it is attached
-# to), so it can be long: a playlist with a DVR window keeps a marker for hours. The "in progress" message repeats
-# all along a break, so it is reported once every few minutes.
 DEFAULT_TTL = 21600
 TTL = {"cue-out-cont": 600}
-BREAK_MARGIN = 15  # seconds after the announced end of a break during which a new "ad break starts" is a repeat
-UNKNOWN_BREAK = 30  # seconds assumed for a break that does not say how long it lasts
+BREAK_MARGIN = 15
+UNKNOWN_BREAK = 30
 PLACEHOLDER = ("[", "{")  # list entries with template variables ([DEVICE_ID]...) are not real URLs
 
 
@@ -164,7 +167,7 @@ class ScteLog:
 
 
 class ScteWatcher:
-    """Finds the markers, deduplicates them and writes them to the log."""
+    """Follows the tuned channel with the ``tdt-datos`` engine and writes the changes to the log."""
 
     def __init__(self, config: Config, store: Store, net: Net, path: Path | None = None) -> None:
         self.config = config
@@ -176,6 +179,7 @@ class ScteWatcher:
         self._owner: dict[str, tuple[str, str]] = {}  # playlist/segment URL -> (channel id, name)
         self._sources_signature: tuple[int, ...] = ()
         self._sources: dict[str, tuple[str, str]] = {}
+        self._vigilances: dict[str, Vigilance] = {}
         self._lock = threading.Lock()
         self._scan_lock = threading.Lock()
         self._wake = threading.Event()
@@ -194,6 +198,8 @@ class ScteWatcher:
     def reconfigure(self) -> None:
         """The settings changed: apply the log size and, if scanning, start a scan now."""
         self.log.set_keep(self.config.scte_keep)
+        if not self.config.scte_enabled:
+            self.unwatch()
         if self._scans():
             self._scan_requested = True
         self._wake.set()
@@ -238,6 +244,7 @@ class ScteWatcher:
     def status(self) -> dict[str, Any]:
         with self._lock:
             state = dict(self._state)
+            watched = [v.snapshot() for v in self._vigilances.values()]
         return {
             "enabled": self.config.scte_enabled,
             "scope": self.config.scte_scope,
@@ -245,15 +252,131 @@ class ScteWatcher:
             "inspect": self.config.scte_inspect_segments,
             "events": len(self.log),
             "scan": state,
+            "states": watched,
         }
 
-    # ---- what is being watched
+    # ---- the live watcher
+    def watch(self, channel: dict[str, Any], resolve: Any = None) -> dict[str, Any]:
+        """Start following ``channel``. ``resolve`` is a callable returning ``{url, headers}`` on demand."""
+        cid = channel["id"]
+        source = next((u for u in channel.get("sources") or [] if u), "")
+        headers: dict[str, str] = {}
+        resolver = None
+        mediaset = False
+        url = ""
+        if tdtspain.is_tdtspain(source):
+            recipe = channel.get("tdtspain") or {}
+            mediaset = str(recipe.get("streamtype") or "") == "stream10"
+            if resolve is None:
+                return {"ok": False, "error": "canal sin resolvedor"}
+            out = resolve()
+            url = str(out.get("url") or "")
+            headers = dict(out.get("headers") or {})
+            resolver = resolve
+        elif source and not is_youtube(source) and HLS_URL.search(source):
+            url = source
+            headers = self.store.headers_for(cid)
+        else:
+            return {"ok": False, "error": "este canal no tiene un directo abierto que vigilar"}
+        if not url:
+            return {"ok": False, "error": "sin URL"}
+        with self._lock:
+            old = self._vigilances.pop(cid, None)
+        if old is not None:
+            old.close()
+        watcher = Vigilance(
+            cid,
+            channel["name"],
+            url,
+            headers,
+            self.net,
+            resolver=resolver,
+            lag=MEDIASET_LAG_S if mediaset else LAG_S,
+            margin=MEDIASET_MARGIN_S if mediaset else MARGIN_S,
+            interval=MEDIASET_INTERVAL_S if mediaset else INTERVAL_S,
+            on_change=lambda state, since, left, event, previous: self._on_change(
+                channel, state, since, left, event, previous
+            ),
+            stop=self._stop,
+            mediaset=mediaset,
+        )
+        with self._lock:
+            self._vigilances[cid] = watcher
+        watcher.start()
+        log.info("vigilando %s (%s)", channel["name"], "Mediaset" if mediaset else "HLS")
+        return {"ok": True, "state": watcher.state}
+
+    def unwatch(self, cid: str = "") -> bool:
+        """Stop following one channel, or every channel when ``cid`` is empty."""
+        with self._lock:
+            if cid:
+                watcher = self._vigilances.pop(cid, None)
+                watchers = [watcher] if watcher else []
+            else:
+                watchers = list(self._vigilances.values())
+                self._vigilances.clear()
+        for watcher in watchers:
+            watcher.close()
+        return bool(watchers)
+
+    def states(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [v.snapshot() for v in self._vigilances.values()]
+
+    def _on_change(
+        self,
+        channel: dict[str, Any],
+        state: str,
+        since: str | None,
+        left: int | None,
+        event: Any,
+        previous: str = "",
+    ) -> None:
+        """A break starts or ends *for the picture*: write it to the log so the page reacts now."""
+        if not self.config.scte_enabled:
+            return
+        if state == "publicidad":
+            kind = "cue-out"
+        elif state == "programa" and previous == "publicidad":
+            kind = "cue-in"
+        else:
+            return  # the first reading only tells us the channel is on programme: there is nothing to close
+        detail = "corte de publicidad" if kind == "cue-out" else "fin de la publicidad"
+        if event and event.get("detail"):
+            detail = str(event["detail"])
+        now = int(time.time())
+        entry: dict[str, Any] = {
+            "ts": now,
+            "channel": channel["id"],
+            "name": channel["name"],
+            "url": "",
+            "kind": kind,
+            "detail": detail,
+            "raw": "",
+            "source": "vigilancia",
+            "key": f"{channel['id']}|{kind}|{since or ''}",
+            "duration": left or 0,
+            "apply_now": True,
+            "state": state,
+            "since": since,
+        }
+        with self._lock:
+            duplicate = self._seen.get(entry["key"], 0.0) > now - 5
+            self._seen[entry["key"]] = now
+        if not duplicate:
+            self.log.add(entry)
+            log.info("marca de anuncios en %s: %s %s", channel["name"], kind, detail)
+
+    # ---- what the proxy serves
     def observe(self, url: str, text: str, tag: str = "") -> None:
         """Look at a playlist the proxy is serving. Never raises: it must not get in the way of playback."""
         if not self.config.scte_enabled:
             return
         try:
             channel = self._channel_of(url, tag)
+            with self._lock:
+                if channel[0] in self._vigilances:
+                    return  # the live watcher owns this channel: it publishes the state already
             self._remember_children(url, text, channel)
             self._record(channel, scan_playlist(text), "reproducción", url)
         except Exception:
@@ -270,7 +393,7 @@ class ScteWatcher:
             return known
         if tag:
             with self.store.lock:
-                for channel in self.store.custom:
+                for channel in self.store.all_channels():
                     if channel["id"] == tag:
                         return channel["id"], channel["name"]
         host = urllib.parse.urlsplit(url).hostname or "desconocido"
@@ -283,7 +406,10 @@ class ScteWatcher:
             signature = (len(store.channels), len(store.radios), len(store.custom))
             if signature != self._sources_signature:
                 self._sources = {
-                    strip_query(url): (ch["id"], ch["name"]) for ch in store.all_channels() for url in ch["sources"]
+                    strip_query(url): (ch["id"], ch["name"])
+                    for ch in store.all_channels()
+                    for url in ch["sources"]
+                    if not tdtspain.is_tdtspain(url)
                 }
                 self._sources_signature = signature
             return self._sources
@@ -367,6 +493,7 @@ class ScteWatcher:
                         u
                         for u in ch["sources"]
                         if HLS_URL.search(u)
+                        and not tdtspain.is_tdtspain(u)
                         and not is_youtube(u)
                         and not any(p in u for p in PLACEHOLDER)
                         and source_ok(ch, u, status) is not False
@@ -383,7 +510,7 @@ class ScteWatcher:
         with self.net.open(url, headers, False, PROBE_TIMEOUT) as response:
             body = response.read(MAX_PLAYLIST)
             final = response.geturl()
-        text = body.decode("utf-8", "replace").lstrip("﻿ \r\n\t")
+        text = body.decode("utf-8", "replace").lstrip("\ufeff \r\n\t")
         if not text.startswith("#EXTM3U"):
             raise ValueError("no es una lista m3u8")
         return text, final

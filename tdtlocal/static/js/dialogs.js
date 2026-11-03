@@ -2,7 +2,7 @@
 import { postJson } from './api.js';
 import { $ } from './dom.js';
 import { parseAddLink } from './lib/addlink.js';
-import { GROUPS, atresWeb, missingOf } from './lib/embeds.js';
+import { atresWeb } from './lib/embeds.js';
 import { parseAlertWords } from './lib/alerts.js';
 import { cur, state } from './state.js';
 import { store } from './store.js';
@@ -31,7 +31,6 @@ function initOwnChannels(app) {
   openFromLink(dlg, message);
   $('addCancel').addEventListener('click', () => dlg.close());
   $('addHdr').addEventListener('change', () => { $('addExtra').hidden = $('addHdr').value !== 'custom'; });
-  $('addAtres').addEventListener('click', () => addGroup(app, 'atresmedia', message));
 
   $('addForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -70,33 +69,6 @@ export async function removeOwn(c) {
   hooks.clearChannel(c); // a tile that was showing it is emptied
   hooks.saveMulti();
   await hooks.load(true);
-}
-
-// Own channels for a whole group (Atresmedia: its embeddable player). No headers, no stream.
-async function addGroup(app, groupId, message) {
-  const group = GROUPS[groupId];
-  const missing = missingOf(groupId, state.channels);
-  if (!missing.length) { message('Ya tienes todos los canales de ' + group.name + '.'); return; }
-  let added = 0;
-  let merged = 0;
-  for (const entry of missing) {
-    try {
-      const r = await postJson('/api/custom', { ...entry, kind: 'tv', headers: {}, merge: true });
-      const res = await r.json();
-      if (res.ok) added++;
-      if (res.merged) merged++;
-    } catch { message('El servidor local no responde.'); return; }
-  }
-  if (state.kind !== 'tv') app.setKind('tv');
-  state.cat = '';
-  state.grp = '';
-  await app.load(true);
-  // these channels have no guide in the lists: it comes from the community guide, which is turned on now
-  const guide = await postJson('/api/settings', { epg_extra_enabled: true }).then((r) => r.ok).catch(() => false);
-  if (guide) for (const wait of [15000, 40000, 90000]) setTimeout(() => app.loadEpg(), wait); // it takes a while to arrive
-  message('Hecho: ' + added + ' canales de ' + group.name + (merged ? ' (' + merged + ' unidos a canales que ya tenías, como otra fuente)' : '')
-    + (added < missing.length ? '; algunos no se pudieron añadir' : '') + '. Los verás en «Propios»'
-    + (guide ? ', y en unos segundos tendrán su guía.' : '.'));
 }
 
 // tools/capturar-directo.js opens the page with #add=…: the dialog opens already filled in, nothing is added by itself

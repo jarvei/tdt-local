@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-from . import __version__, ads, u7d
+from . import __version__, ads, tdtspain, u7d
 from .ai import Assistant
 from .config import Config
 from .epg import EpgSyncer
@@ -83,6 +83,35 @@ class App:
         with self.store.lock:
             self.store.cover_urls.add(url)
 
+    def channel_by_id(self, cid: str) -> dict[str, Any] | None:
+        with self.store.lock:
+            return next((ch for ch in self.store.all_channels() if ch["id"] == cid), None)
+
+    def watch_ads(self, cid: str) -> dict[str, Any]:
+        """Follow one channel with the ad-break watcher (see ``scte_watch``)."""
+        channel = self.channel_by_id(cid)
+        if channel is None:
+            raise ValueError("canal desconocido")
+        if not self.config.scte_enabled:
+            return {"ok": False, "error": "la vigilancia está desactivada"}
+
+        def resolve() -> dict[str, Any]:
+            out = self.resolve_channel(cid)
+            return {"url": out["url"], "headers": out.get("headers") or {}}
+
+        return self.scte.watch(channel, resolve)
+
+    def resolve_channel(self, cid: str) -> dict[str, Any]:
+        """The live URL of a channel whose recipe is followed at play time (TDT Spain's list)."""
+        channel = self.channel_by_id(cid)
+        if channel is None:
+            raise ValueError("canal desconocido")
+        out = tdtspain.resolve(channel, self.net)
+        self.net.allow(out["url"])
+        with self.store.lock:
+            self.store.extra_headers[cid] = dict(out.get("headers") or {})
+        return out
+
     def channels_payload(self) -> dict[str, Any]:
         """The JSON behind ``/api/channels``: every channel with its health, plus list metadata."""
         store = self.store
@@ -97,7 +126,7 @@ class App:
                     {"u": u, "ok": source_ok(ch, u, status), "f": fmts[i] if i < len(fmts) else ""}
                     for i, u in enumerate(ch["sources"])
                 ]
-                item = {k: v for k, v in ch.items() if k not in ("fmts", "headers")}
+                item = {k: v for k, v in ch.items() if k not in ("fmts", "headers", "tdtspain")}
                 item["sources"], item["ok"] = sources, channel_ok(ch, status)
                 item["kind"] = item.get("kind") or "tv"
                 out.append(item)

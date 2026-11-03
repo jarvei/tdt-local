@@ -18,11 +18,11 @@ def config(**values) -> Config:
 
 
 class PayloadTests(unittest.TestCase):
-    def test_nothing_is_sent_while_off(self):
-        self.assertIsNone(payload(Config()))
+    def test_it_is_on_by_default_and_can_be_switched_off(self):
+        self.assertIsNotNone(payload(Config()))  # the auto-mute works out of the box
         self.assertIsNone(payload(config(ad_enabled=False)))
 
-    def test_it_does_not_need_the_watcher(self):  # the bridge script of Atresplayer's player also reports breaks
+    def test_it_does_not_need_the_watcher(self):  # the reaction also works with the watcher off
         self.assertIsNotNone(payload(config(scte_enabled=False)))
 
     def test_muting_is_enough_to_react(self):
@@ -156,7 +156,8 @@ class RouteTests(ServerCase):
         self.assertNotIn("noticias.example", self.csp())
 
     def test_the_page_is_told_when_there_is_something_to_do(self):
-        self.assertIsNone(self.get_json("/api/channels")[1]["meta"]["ads"])
+        ads = self.get_json("/api/channels")[1]["meta"]["ads"]
+        self.assertEqual(ads["audio"], "mute")  # the auto-mute is on out of the box
         self.post_json("/api/settings", {"scte_enabled": True, "ad_enabled": True, "ad_audio": "lower"})
         ads = self.get_json("/api/channels")[1]["meta"]["ads"]
         self.assertEqual((ads["audio"], ads["lower_percent"]), ("lower", 25))
@@ -180,9 +181,9 @@ class RouteTests(ServerCase):
     def test_an_empty_web_is_fine(self):
         self.assertEqual(self.post_json("/api/settings", {"ad_web_url": ""})[0], 200)
 
-    def test_it_is_off_by_default_and_a_touch_is_respected(self):
+    def test_it_is_on_by_default_and_a_touch_is_respected(self):
         c = self.app.config
-        self.assertEqual((c.ad_enabled, c.ad_audio, c.ad_screen, c.ad_on_touch), (False, "mute", "keep", "respect"))
+        self.assertEqual((c.ad_enabled, c.ad_audio, c.ad_screen, c.ad_on_touch), (True, "mute", "keep", "respect"))
 
     def test_the_web_check_reports_whether_it_can_be_shown(self):
         self.origin.routes["/ok"] = (200, {"Content-Type": "text/html"}, b"<html></html>")

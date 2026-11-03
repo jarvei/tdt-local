@@ -1,7 +1,7 @@
 // While an ad break is on (SCTE-35), do what the user chose: mute or lower the sound, switch channel, show a web.
 // What to do with each marker is decided in lib/adbreak.js; this file keeps the one break under way and its timers.
 import {
-  END_MARGIN, PREROLL_CONTENT_SECONDS, STALE_SECONDS, altChannel, duckedGain, reactionTo, remainingOf, segmentStart, startText, untilMarker,
+  END_MARGIN, STALE_SECONDS, altChannel, duckedGain, reactionTo, remainingOf, segmentStart, startText, untilMarker,
   waitFor,
 } from './lib/adbreak.js';
 
@@ -76,7 +76,7 @@ function late(item, behind) {
  */
 function schedule(tile, ev, kind, run) {
   const item = { tile, ev, kind, run, timer: 0, waitTimer: 0 };
-  if (ev.kind === 'cue-out-cont') { run(0); return; } // already in the middle of it
+  if (ev.kind === 'cue-out-cont' || ev.apply_now) { run(0); return; } // already timed by the server
   const start = segmentStart(tile.fragStart, ev.seg);
   if (start !== undefined) { arm(item, waitFor(start, tile.video.currentTime, tile.video.playbackRate)); return; }
   const ahead = untilMarker(ev, tile.hls ? tile.hls.latency : NaN, Date.now() / 1000);
@@ -109,35 +109,11 @@ export function adsEvents(events) {
   }
 }
 
-const EXTERNAL_LIMIT_S = 900; // a break reported from inside a player ends when it says so; this is only a safety net
-const REPLAY_GRACE_S = 90; // a player that is loaded again starts with an ad of its own: it is not a new break to leave for
-let returned = null; // the channel we last went back to by loading it again, and when
-
-/**
- * The player inside a tile (Atresplayer's, through the bridge script) says an ad break starts or ends. It does not
- * say how long it lasts, so it ends when the player says so.
- */
-export function adsExternal(tile, on, contentSeconds = Infinity) {
-  if (!cfg || !host || !tile.c) return;
-  if (current && current.tile === tile) { // the break we are in: it may be parked in the background, still telling us
-    if (!on && current.external) finish(false);
-    return;
-  }
-  if (tile !== host.focusTile()) { // in multi-view another tile has the sound: its break only gets the notice
-    tile.setAdFlag(on && cfg.flag);
-    return;
-  }
-  // the ad that comes right after pressing «Directo» (or after the player starts over) has no programme before it: a
-  // channel switch would be useless (it lasts a few seconds) and, when the player starts over after a break, it would
-  // make it a loop. It only gets the sound and the notice.
-  if (on && !current) begin(tile, { channel: tile.c.id, kind: 'cue-out' }, 0, true, contentSeconds < PREROLL_CONTENT_SECONDS);
-}
-
-function begin(tile, ev, behind, external = false, soft = false) {
+function begin(tile, ev, behind) {
   if (!cfg || current || tile !== host.focusTile() || !tile.c || tile.c.id !== ev.channel) return;
   const channel = tile.c;
   const b = {
-    tile, channel, channelId: channel.id, before: { ...host.volume() }, audioTouched: false, tuned: false, timer: 0, external,
+    tile, channel, channelId: channel.id, before: { ...host.volume() }, audioTouched: false, tuned: false, timer: 0,
     park: null,
   };
   current = b;
@@ -145,9 +121,7 @@ function begin(tile, ev, behind, external = false, soft = false) {
   if (cfg.audio === 'mute') tile.setDuck({ muted: true });
   else if (cfg.audio === 'lower') tile.setDuck({ gain: duckedGain(cfg.lower_percent) });
   let altName = '';
-  // right after going back to a channel by loading it again, its player starts with an ad of its own: not a new break
-  const replay = external && returned && returned.channelId === channel.id && Date.now() - returned.at < REPLAY_GRACE_S * 1000;
-  if (cfg.screen === 'channel' && !replay && !soft) {
+  if (cfg.screen === 'channel') {
     const alt = altChannel(host.channels(), cfg.channel);
     if (alt && alt.id !== channel.id) {
       altName = alt.name;
@@ -156,14 +130,13 @@ function begin(tile, ev, behind, external = false, soft = false) {
       b.park = host.park(tile, alt);
       if (!b.park) host.tune(alt);
     }
-  } else if (cfg.screen === 'web' && !soft) {
+  } else if (cfg.screen === 'web') {
     tile.showAdFrame(cfg.web_url);
   }
   // when the original cannot be watched any more, nothing tells that the break is over: the assumed length rules
-  const blind = !!altName && !b.park;
-  const left = external && !blind ? EXTERNAL_LIMIT_S : Math.max(0, remainingOf(ev, cfg).seconds - behind);
-  b.timer = setTimeout(() => finish(false), (left + (external ? 0 : END_MARGIN)) * 1000);
-  host.say(soft ? startText({ ...cfg, screen: 'keep' }, '') + ' (poco programa antes: no se cambia de canal)' : startText(cfg, altName));
+  const left = Math.max(0, remainingOf(ev, cfg).seconds - behind);
+  b.timer = setTimeout(() => finish(false), (left + END_MARGIN) * 1000);
+  host.say(startText(cfg, altName));
 }
 
 /**
@@ -183,10 +156,7 @@ function finish(quiet) {
   if (quiet) return;
   if (b.audioTouched && cfg && cfg.on_touch === 'restore') host.setVolume(b.before);
   const tile = b.tile;
-  if (!b.park && tile === host.focusTile() && tile.c && tile.c.id !== b.channelId) {
-    returned = { channelId: b.channelId, at: Date.now() };
-    host.tune(b.channel);
-  }
+  if (!b.park && tile === host.focusTile() && tile.c && tile.c.id !== b.channelId) host.tune(b.channel);
   host.say('Fin de la pausa de anuncios');
 }
 

@@ -66,8 +66,8 @@ function loadPlugins() {
   for (const p of plugins.filter((x) => x.problems.length)) log('plugins', 'WARN', p.id + ' no se puede usar: ' + p.problems.join('; '));
 }
 
-/** Sends what a window's page writes to its console to the log: everything from TDT local, and warnings, errors and
- * the bridge's own lines from the players inside it (they are chatty). */
+/** Sends what a window's page writes to its console to the log: everything from TDT local, and warnings and errors
+ * from the players inside it (they are chatty). */
 let reloads = 0;
 let reloadTimer = null;
 /** Our own server refused a connection: the page may have loaded without some of its scripts. Load it again, at most twice. */

@@ -13,6 +13,7 @@ from .config import Config
 from .custom import MAX_SOURCES, build_custom_entry, guess_fmt, is_youtube
 from .net import Net
 from .parser import Channel
+from .tdtspain import is_tdtspain
 from .util import normalize
 
 log = logging.getLogger(__name__)
@@ -38,8 +39,8 @@ def read_json(path: Path) -> dict[str, Any] | None:
 
 
 def source_ok(channel: Channel, url: str, status: dict[str, dict]) -> bool | None:
-    """Last health result of one source. YouTube and custom channels are never checked."""
-    if is_youtube(url) or u7d.is_u7d(url) or channel.get("custom"):
+    """Last health result of one source. YouTube, custom channels and lazy sources are never checked."""
+    if is_youtube(url) or u7d.is_u7d(url) or is_tdtspain(url) or channel.get("custom"):
         return None
     result = status.get(url)
     return result["ok"] if result else None
@@ -80,6 +81,15 @@ class Store:
         self.logo_urls: set[str] = set()
         self.cover_urls: set[str] = set()  # U7D programme covers, learnt as the listings are read
         self.custom_headers: dict[str, dict[str, str]] = {}  # custom channel id -> extra request headers
+        # Headers of channels whose URL is resolved at play time (TDT Spain's list): the proxy adds
+        # them when the page asks for a source with ``c=<id>``. Kept apart from custom_headers because
+        # rebuild_allowlists() regenerates that one from the custom channels.
+        self.extra_headers: dict[str, dict[str, str]] = {}
+
+    def headers_for(self, channel_id: str) -> dict[str, str]:
+        """Extra request headers the proxy must add for a channel (Mediaset's CDN checks Referer)."""
+        with self.lock:
+            return {**self.custom_headers.get(channel_id, {}), **self.extra_headers.get(channel_id, {})}
 
     # ---- derived views
     def all_channels(self) -> list[Channel]:
@@ -95,7 +105,7 @@ class Store:
             for ch in pool:
                 fmts = ch.get("fmts") or []
                 for i, url in enumerate(ch["sources"]):
-                    if not is_youtube(url):
+                    if not is_youtube(url) and not is_tdtspain(url):
                         out.setdefault(url, fmts[i] if i < len(fmts) else "")
         return out
 
@@ -104,7 +114,8 @@ class Store:
         with self.lock:
             for ch in self.all_channels():
                 for url in ch["sources"]:
-                    self.net.allow(url)
+                    if not is_tdtspain(url):
+                        self.net.allow(url)
                 if ch["logo"]:
                     self.logo_urls.add(ch["logo"])
             self.custom_headers = {ch["id"]: ch["headers"] for ch in self.custom if ch.get("headers")}

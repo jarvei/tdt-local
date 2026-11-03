@@ -44,7 +44,7 @@ test('trimLocales deletes the others and is harmless without a locales folder', 
 
 test('the plugins that come with the app are the folders of tools/ with a manifest', () => {
   const found = pluginDirs(join(REPO, 'tools'));
-  assert.ok(found.includes('puente-atresplayer') && found.includes('atresplayer-u7d'));
+  assert.ok(found.includes('atresplayer-u7d'));
   assert.ok(!found.includes('capturar-directo.js'));
 });
 
@@ -60,7 +60,7 @@ test('stageExtras lays out server/, plugins/ and icon.png, and refuses to run wi
     const extras = stageExtras({ repoRoot: REPO, serverDir: server, stageDir: stage });
     assert.deepEqual(extras.map((p) => p.slice(stage.length + 1)), ['server', 'plugins', 'icon.png']);
     assert.ok(existsSync(join(stage, 'server', SERVER)) && existsSync(join(stage, 'server', '_internal', 'lib.dll')));
-    assert.ok(existsSync(join(stage, 'plugins', 'puente-atresplayer', 'manifest.json')));
+    assert.ok(existsSync(join(stage, 'plugins', 'atresplayer-u7d', 'manifest.json')));
     assert.ok(existsSync(join(stage, 'icon.png')));
     stageExtras({ repoRoot: REPO, serverDir: server, stageDir: stage }); // running again replaces the stage
   } finally {

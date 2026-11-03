@@ -703,13 +703,13 @@ class SettingsIntegrationTests(ServerCase):
         status, data = self.post_json("/api/settings", {"scte_scope": "todo", "scte_interval": 2, "scte_keep": 5})
         self.assertEqual(status, 400)
         self.assertEqual(set(data["errors"]), {"scte_scope", "scte_interval", "scte_keep"})
-        self.assertFalse(self.app.config.scte_enabled)
+        self.assertTrue(self.app.config.scte_enabled)
 
-    def test_it_is_off_by_default(self):
+    def test_it_is_on_by_default(self):
         config = self.app.config
         self.assertEqual(
             (config.scte_enabled, config.scte_scope, config.scte_inspect_segments, config.scte_notify),
-            (False, "viewing", False, True),
+            (True, "viewing", False, True),
         )
 
 

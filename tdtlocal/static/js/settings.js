@@ -144,10 +144,8 @@ function scteHelp() {
 }
 
 function adsHelp() {
-  return el('p', 'dlg-hint', 'Lo que hace la página mientras el canal que ves está en una pausa de anuncios. Para canales con '
-    + 'stream necesita la vigilancia de marcas (pestaña anterior) y que el canal envíe la marca (muchos no lo hacen). Para los '
-    + 'de Atresmedia con su reproductor incrustado necesita el puente de tools/puente-atresplayer (una extensión que se carga '
-    + 'en tu navegador, sin gestor de scripts): lee el aviso «Publicidad» del propio reproductor y se lo cuenta a TDT local. '
+  return el('p', 'dlg-hint', 'Lo que hace la página mientras el canal que ves está en una pausa de anuncios. Necesita '
+    + 'que el canal envíe la marca en su playlist (el servidor la sigue cada segundo; muchos canales no la envían). '
     + 'Nada se bloquea ni se salta: el vídeo sigue su curso.');
 }
 

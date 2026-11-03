@@ -86,8 +86,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
-        origin = web_origin(self.app.config)  # the one web the user chose to show during ad breaks
-        self.send_header("Content-Security-Policy", CSP.format(web=" " + origin if origin else ""))
+        if not getattr(self, "_csp_set", False):  # a response may bring its own (the SVG logos)
+            origin = web_origin(self.app.config)  # the one web the user chose to show during ad breaks
+            self.send_header("Content-Security-Policy", CSP.format(web=" " + origin if origin else ""))
         super().end_headers()
 
     # ---- helpers
@@ -102,6 +103,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         for key, value in (extra or {}).items():
+            if key.lower() == "content-security-policy":
+                self._csp_set = True
             self.send_header(key, value)
         self.end_headers()
         if body and self.command != "HEAD":
@@ -174,6 +177,8 @@ class Handler(BaseHTTPRequestHandler):
             self._u7d_list(arg("c", 30))
         elif path == "/api/u7d/play":
             self._u7d_play(arg("c", 30), arg("r", 100))
+        elif path == "/api/tdtspain/play":
+            self._tdtspain_play(arg("c", 100))
         elif path == "/proxy":
             self._proxy(arg("u", MAX_PROXY_URL + 1), arg("c", 100), arg("s", 40))
         elif path == "/logo":
@@ -308,7 +313,10 @@ class Handler(BaseHTTPRequestHandler):
         if logo is None:
             self._send(404, b"")
             return
-        self._send(200, logo[1], logo[0], {"Cache-Control": "public, max-age=86400"})
+        headers = {"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"}
+        if logo[0] == "image/svg+xml":
+            headers["Content-Security-Policy"] = "sandbox"  # opening it directly must not run anything
+        self._send(200, logo[1], logo[0], headers)
 
     # ---- last 7 days
     def _u7d_list(self, key: str) -> None:
@@ -334,6 +342,22 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, out)
 
     # ---- proxy
+    def _tdtspain_play(self, cid: str) -> None:
+        """Resolve one channel of the TDT Spain list to the URL of its live stream, now."""
+        if not cid:
+            self._json(400, {"error": "falta c"})
+            return
+        try:
+            out = self.app.resolve_channel(cid)
+        except ValueError as exc:
+            self._json(404, {"error": str(exc)})
+            return
+        except Exception as exc:
+            _close_quietly(exc)
+            self._json(502, {"error": f"TDT Spain: {type(exc).__name__}: {exc}"})
+            return
+        self._json(200, out)
+
     def _proxy(self, url: str, channel_tag: str = "", session_tag: str = "") -> None:
         if not url or len(url) > MAX_PROXY_URL:
             self._json(400, {"error": "falta u"})
@@ -342,7 +366,7 @@ class Handler(BaseHTTPRequestHandler):
         headers = {}
         if self.headers.get("Range"):
             headers["Range"] = self.headers["Range"]
-        headers.update(app.store.custom_headers.get(channel_tag, {}))
+        headers.update(app.store.headers_for(channel_tag))
         try:
             response = app.net.open(url, headers, True, 20)
         except Blocked as exc:

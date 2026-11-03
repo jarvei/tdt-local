@@ -9,17 +9,21 @@
 > [letra pequeña](#letra-pequeña-con-cariño). Las críticas, las *issues* y los *pull requests* son bienvenidos.
 
 Visor web **local** para ver la TDT española y escuchar la radio en el PC sin las apps de cada
-cadena. Usa las listas públicas de [TDTChannels](https://github.com/LaQuay/TDTChannels)
-(`TELEVISION.md` y `RADIO.md`) y se actualiza solo. Solo biblioteca estándar de Python:
-no hay nada que instalar con `pip`. El asistente de IA y los subtítulos son opcionales y usan
+cadena. La tele sale del catálogo de la aplicación **TDT Spain** (`canalesv4.json`: 248 canales con
+sus grupos, logos y guía, y los directos de RTVE, Atresmedia, Mediaset y las autonómicas resueltos
+como los resuelve esa app); la radio, de las listas públicas de
+[TDTChannels](https://github.com/LaQuay/TDTChannels). Se actualiza solo. Solo biblioteca estándar de
+Python: no hay nada que instalar con `pip`. El asistente de IA y los subtítulos son opcionales y usan
 programas que ya tengas (un servidor llama.cpp, ffmpeg y whisper.cpp); sin ellos, todo lo demás
 funciona igual.
 
-> **In English:** a local web viewer for Spanish digital TV and radio, fed by the public
+> **In English:** a local web viewer for Spanish digital TV and radio. TV comes from the **TDT Spain**
+> app's catalogue (`canalesv4.json`) and radio from the public
 > [TDTChannels](https://github.com/LaQuay/TDTChannels) lists. Python standard library only; HLS
 > playback through a local proxy, programme guide (XMLTV), 4-channel multi-view with rotating audio,
 > optional local AI assistant (any OpenAI-compatible server such as llama.cpp) and live subtitles
-> and voice alerts (whisper.cpp). The interface is in Spanish.
+> and voice alerts (whisper.cpp). Ad breaks are detected with the operator's `tdt-datos` engine and
+> muted automatically, the way TDT Spain's app does it. The interface is in Spanish.
 
 ## Capturas
 
@@ -38,7 +42,7 @@ comprobado en condiciones simuladas o con pocos casos reales. **📋 Pendiente**
 
 | Característica | Estado |
 |---|---|
-| Listas de TDTChannels al día (cada 6 h, con ETag) | ✅ Hecho |
+| Listas de la tele desde el catálogo de TDT Spain (248 canales, cada 6 h, con ETag) y radio de TDTChannels | ✅ Hecho |
 | Reproducción de directos HLS con proxy local | ✅ Hecho |
 | Radio (unas 980 emisoras, con su logo en lugar de vídeo) | ✅ Hecho |
 | Comprobar qué canales y emisoras responden | ✅ Hecho |
@@ -56,20 +60,17 @@ comprobado en condiciones simuladas o con pocos casos reales. **📋 Pendiente**
 | Subtítulos en directo con Whisper | 🧪 Probado poco · alucina con música y voces solapadas |
 | Alertas por voz (palabras vigiladas en las cuatro casillas) | 🧪 Probado poco · misma limitación |
 | Instaladores para Windows, macOS (13 o superior) y Linux | 🧪 Probado poco · sin firmar; pesan unos 100 MB; macOS y Linux sin probar en máquinas limpias |
-| Marcas de anuncios SCTE-35 en las listas HLS: detectar, decodificar, guardar y exportar (JSON y CSV) | ✅ Hecho · comprobado con streams reales |
+| Marcas de anuncios SCTE-35: detección con el motor de `tdt-datos` (listas HLS y `EventStream` DASH), registro y exportación (JSON y CSV) | ✅ Hecho · comprobado con streams reales |
 | Aviso en pantalla cuando aparece una marca nueva | ✅ Hecho |
 | Marcas SCTE-35 dentro del vídeo (PID del MPEG-TS, eventos `emsg`) | 🧪 Probado poco · solo con datos sintéticos |
-| Durante la publicidad: silenciar o bajar el sonido | 🧪 Probado poco · con un directo simulado |
+| **Auto-mute de la publicidad**, como la app TDT Spain: sondeo de la variante, retardo del directo (18 s; 0 en Mediaset), duración con margen y cierre por `CUE-IN` | ✅ Hecho · probado de punta a punta con un corte real simulado |
 | Durante la publicidad: cambiar a otro canal y volver | 🧪 Probado poco · con un directo simulado |
 | Durante la publicidad: mostrar una web sobre la imagen, con comprobación previa | 🧪 Probado poco · con un directo simulado |
 | Durante la publicidad: respetar o deshacer lo que toques | 🧪 Probado poco · con un directo simulado |
 | Igualador de volumen (sube lo bajo y baja lo alto hasta un nivel) | 🧪 Probado poco · con señales sintéticas |
 | Ecualizador de diez bandas con preajustes | 🧪 Probado poco · con señales sintéticas |
 | Ajustes de sonido globales y propios de cada canal | ✅ Hecho |
-| Atresmedia con un clic (Antena 3, La Sexta, Neox, Nova, Mega, Atreseries) con el reproductor oficial de Atresplayer incrustado | 🧪 Probado poco · se ha visto emitir La Sexta; los otros cinco cargan su reproductor |
-| Aviso fijo «PUBLICIDAD» sobre la imagen mientras dura una pausa (con stream, o con el puente en Atresplayer) | 🧪 Probado poco · con un directo simulado y con mensajes simulados del puente |
-| Igualador de volumen y ecualizador también en el reproductor de Atresplayer (con el puente como extensión) | 🧪 Probado poco · con un audio de prueba dentro de un iframe, no con el reproductor real ni como extensión cargada |
-| Puente con el reproductor de Atresplayer (`tools/puente-atresplayer`): leer su aviso «Publicidad» y silenciarlo | 🧪 Probado poco · la detección, con el reproductor real y la extensión cargada en el navegador del autor; no con Tampermonkey. Guía: [LEEME](tools/puente-atresplayer/LEEME.md) |
+| Aviso fijo «PUBLICIDAD» sobre la imagen mientras dura una pausa | ✅ Hecho |
 | Guía (programa en emisión y siguiente) e iconos de los canales de Atresmedia, desde una guía comunitaria | 🧪 Probado poco · se ha visto la guía de los seis canales y sus iconos; depende de un archivo de terceros |
 | Quitar un canal propio desde su fila de la lista o desde el botón bajo la imagen | ✅ Hecho |
 | Mediaset dentro de TDT local | 📋 Pendiente · su reproductor prohíbe incrustarse; hoy sus canales abren su web |
@@ -184,20 +185,16 @@ conexión para descargar las listas; después se usa la última copia guardada e
   `data/custom.json`, con cabeceras `Origin`/`Referer` opcionales que el proxy envía con la lista y
   con cada segmento. No se salta DRM ni geobloqueos: solo cabeceras. Para no copiar el enlace a mano hay un
   [fragmento para tu navegador](#sacar-el-enlace-de-un-directo-desde-tu-navegador).
-- **Atresmedia con un clic:** «Añadir canal» tiene un botón que añade Antena 3, La Sexta, Neox, Nova, Mega y Atreseries
-  con el reproductor oficial incrustable de Atresplayer (`https://www.atresplayer.com/embed/live/<canal>/`), igual que los
-  de YouTube: se ve **su** reproductor, con sus anuncios y su aviso de cookies, y hay que pulsar «Directo». No pasa por el
-  proxy, así que no hay subtítulos, marcas de anuncios ni igualador de sonido. Para que
-  TDT local sepa cuándo hay publicidad y pueda silenciarlo (imprescindible en multivisión, donde solo debe sonar una
-  casilla) hace falta el [script del puente](#publicidad-en-el-reproductor-de-atresplayer).
-  Los ya añadidos no se repiten, y los canales propios se ven siempre, aunque esté marcado «Solo con directo».
+- **Canales de Atresmedia:** el catálogo de TDT Spain ya trae los seis principales y los temáticos; no hay que añadir
+  nada. Se reproducen por su propio HLS y la publicidad la silencia el servidor (ver
+  [Canales](#canales-el-catálogo-de-tdt-spain)). Los canales propios se ven siempre, aunque esté marcado «Solo con
+  directo».
 
-  **Guía e iconos:** TDTChannels no incluye los canales de Atresmedia ni su guía, así que estos canales traen su propio
-  icono y su identificador en una **guía comunitaria** (XMLTV, `EPG_dobleM`, de David Muma). Al pulsar el botón se activa
-  la **guía extra** (Ajustes ▸ Listas y guía): solo lee de ese archivo, que pesa unos 35 MB, los canales tuyos que lo
-  necesitan, y lo mira con su ETag unas pocas veces al día. Con eso salen el programa en emisión y el siguiente, la barra
-  de progreso y la guía completa del canal, como en los demás. Se puede desactivar, o cambiar de fuente, en los ajustes. Si
-  ya tenías esos canales añadidos de antes, vuelve a pulsar el botón para que reciban la guía y el icono.
+  **Guía e iconos:** el XMLTV de TDTChannels no trae la guía de Atresmedia. Para esos canales se puede activar la
+  **guía extra** en Ajustes ▸ Listas y guía (XMLTV de `EPG_dobleM`, de David Muma): solo lee de ese archivo, que pesa
+  unos 35 MB, los canales que lo necesitan, y lo mira con su ETag unas pocas veces al día. Con eso salen el programa en
+  emisión y el siguiente, la barra de progreso y la guía completa del canal, como en los demás. Se puede desactivar, o
+  cambiar de fuente, en los ajustes.
 
   **Un canal, varias fuentes:** si ya tienes un canal propio con el mismo nombre (por ejemplo «La Sexta» con un enlace de
   stream), el reproductor de Atresplayer se añade como **otra fuente suya** en vez de crear un canal repetido, y lo mismo al
@@ -222,10 +219,12 @@ conexión para descargar las listas; después se usa la última copia guardada e
 - **Subtítulos en directo** (`U`) y **alertas por voz**: ffmpeg saca el audio y `whisper-server`
   (whisper.cpp) lo transcribe en tu equipo; el audio no sale de él. Las alertas vigilan palabras en
   las cuatro casillas y, al oír una, resaltan la casilla y le pasan el audio.
-- **Marcas de anuncios (SCTE-35)**, desactivado por defecto: busca la señal con la que las cadenas marcan dónde
-  empieza y acaba la publicidad, avisa en pantalla y guarda cada hallazgo en `data/scte.jsonl` (se puede descargar
-  en JSON o CSV). Ver [más abajo](#marcas-de-anuncios-scte-35). Opcionalmente, mientras dura una pausa, silencia o baja
-  el sonido, cambia a otro canal o muestra una web ([Durante la publicidad](#durante-la-publicidad)).
+- **Marcas de anuncios (SCTE-35) y auto-mute**, activado por defecto: sigue la lista de reproducción del canal que
+  estás viendo, detecta la señal con la que las cadenas marcan dónde empieza y acaba la publicidad, silencia el
+  reproductor durante la pausa y lo devuelve al terminar, igual que hace la app TDT Spain. Avisa en pantalla y guarda
+  cada hallazgo en `data/scte.jsonl` (se puede descargar en JSON o CSV). Ver
+  [más abajo](#marcas-de-anuncios-scte-35). Opcionalmente, mientras dura una pausa, cambia a otro canal o muestra una
+  web ([Durante la publicidad](#durante-la-publicidad)).
 - **Sonido** (botón *Sonido*): **igualador de volumen** (sube lo que suena bajo y baja lo que suena alto hasta un nivel
   que eliges) y **ecualizador** de 10 bandas con preajustes. Ambos se pueden fijar para todos los canales o solo para
   uno. Ver [más abajo](#sonido).
@@ -315,19 +314,51 @@ ponerlas en `iniciar.local.bat` / `iniciar.local.sh`, que no se suben a git.
 
 Si no hay un `whisper-server` en marcha, TDT local lanza uno y lo apaga tras unos minutos sin uso.
 
+## Canales: el catálogo de TDT Spain
+
+La lista de la tele es la de la aplicación [TDT Spain](https://www.tdtspain.com/) (`canalesv4.json`, 248 canales
+visibles). Trae lo que la de TDTChannels no tenía: Antena 3, laSexta, Neox, Nova, Mega, Atreseries, todos los canales
+de Mediaset, los temáticos de Atresplayer y las autonómicas y locales de cada comunidad, con su grupo, su logo y su
+`epgid` (el mismo que usa la guía, así que la EPG sigue funcionando).
+
+Cada canal se reproduce como la app resuelve su directo:
+
+| Tipo | Canales | Cómo |
+|---|---|---|
+| Directo HLS | la mayoría | la URL `m3u8` del catálogo, por el proxy local |
+| YouTube | informativos internacionales | el reproductor incrustado de YouTube |
+| Atresplayer | Antena 3, laSexta, Neox, Nova, Mega y Atreseries | su propio HLS, resuelto al sintonizar y servido por el proxy: el SCTE-35 viene dentro y el motor lo silencia |
+| Atresplayer (temáticos) | Multicine, Clásicos, Comedia, Kidz, Flooxer… | su reproductor incrustado (`/embed/live/<canal>/`); su sonido y su publicidad son suyos y no se pueden controlar desde aquí |
+| RTVE | La 1, La 2, 24h, Teledeporte, Clan y las versiones de Canarias y Cataluña | HLS público de `rtvelivestream.rtve.es`, sin DRM |
+| Mediaset | Telecinco, Cuatro, FDF y los de Infinity | sesión anónima → `playback/check` → DAI de Google, que da un HLS en claro |
+| Dailymotion | Melilla TV, Navarra TV, Bolivia TV, 7 Rioja… | el JSON del reproductor |
+| Páginas con el directo dentro | La 7 y las La 8 de Castilla y León, TAC12, Televisión Canaria… | se lee la página y se saca el `m3u8` |
+| Solo DASH (`.mpd`) | los cinco canales de ETB que solo emiten así | quedan como «solo web»: el navegador no reproduce DASH |
+
+Los que necesitan una receta (Mediaset, Dailymotion, las páginas) **no se resuelven al arrancar**: se resuelven al
+sintonizar, porque sus enlaces llevan tokens que caducan en minutos. Se puede volver a la lista de TDTChannels con
+`--source` y la URL de su `TELEVISION.md`.
+
 ## Marcas de anuncios (SCTE-35)
 
 SCTE-35 es el estándar con el que una emisión marca dónde empieza y acaba una pausa publicitaria; el reproductor o el
-servidor que inserta anuncios lo usa para saber cuándo cortar. TDT local puede buscarlo y dejar constancia. Se activa en
-**Ajustes ▸ Marcas de anuncios** (o con `TDT_SCTE_ENABLED=1`) y, una vez activo, aparece el botón **Marcas**.
+servidor que inserta anuncios lo usa para saber cuándo cortar. TDT local lo busca con el mismo motor de
+[`tdt-datos`](https://github.com/cibernicola/tdt-datos), lo apunta y, por defecto, **silencia la publicidad** como hace
+la app TDT Spain. Se puede apagar en **Ajustes ▸ Marcas de anuncios**; el botón **Marcas** abre el registro.
 
 Dónde mira:
 
-- **Lo que estás viendo:** cada lista de reproducción que pasa por el proxy se analiza al vuelo, sin descargar nada más.
-  Busca `#EXT-X-CUE-OUT` / `CUE-OUT-CONT` / `CUE-IN`, `#EXT-X-DATERANGE` (con `SCTE35-OUT`, `SCTE35-IN`, anuncios
-  intercalados de HLS u otros metadatos), `#EXT-OATCLS-SCTE35`, `#EXT-X-SCTE35` y variantes. Cuando la marca lleva el
-  mensaje binario, se **decodifica** (`splice_insert`, `time_signal` y sus descriptores de segmentación: duración,
-  tipo de pausa, identificador del evento) y se comprueba su CRC.
+- **El canal que estás viendo:** al sintonizar, el servidor empieza a seguir su lista de reproducción de medios (la
+  variante de más calidad, no el maestro) cada 2 s, o cada 1 s en Mediaset. Recorre los tags en orden y se queda con el
+  estado: `#EXT-X-DATERANGE` con `SCTE35-OUT`/`SCTE35-IN` (que se **decodifican**: `splice_insert`, `time_signal` y sus
+  descriptores de segmentación), `#EXT-X-CUE-OUT`/`CUE-OUT-CONT`/`CUE-IN`, los anuncios intercalados de HLS
+  (`X-ASSET-URI`), el ID3 `admode` que Mediaset deja en `X-MESSAGE-DATA` y el `EventStream` SCTE-35 del MPD.
+- **El retardo del directo:** la lista va por delante de la imagen (unos 18 s en Atresmedia), así que el estado se
+  evalúa como era hace ese retardo; en Mediaset es 0 porque la sesión DAI ya entrega el tiempo restante. Al empezar la
+  pausa, el servidor escribe en el registro un `cue-out` ya sincronizado con lo que ves y la página silencia el
+  reproductor; al terminar (por el `CUE-IN` o al cumplirse la duración, con 18 s de margen y 5 s en Mediaset) escribe el
+  `cue-in` y devuelve el sonido. Si el `CUE-IN` del DAI llega antes que la emisión, no se hace caso hasta que se cumple
+  la duración prevista.
 - **Exploración activa:** cada `scte_interval` segundos (60 por defecto) se descarga la lista de los canales que
   indiques, o de todos los que tienen directo, y se analiza igual. No se tocan los marcados como caídos.
 - **Dentro del vídeo** (opcional): se baja el principio (256 KB) de un segmento por canal y se busca el PID de datos de
@@ -340,11 +371,11 @@ La URL se guarda **sin los parámetros de la consulta**, que suelen llevar permi
 el registro, permite explorar al momento, descargarlo (JSON o CSV) o vaciarlo; mientras está activo, una marca nueva
 resalta el botón y se muestra en pantalla (se puede desactivar).
 
-Lo que no hace: no salta ni bloquea anuncios (la reacción de la siguiente sección solo cambia el sonido o lo que ves
-mientras dura la pausa), y no analiza la señal de radiofrecuencia de la TDT (solo los streams que enlaza TDTChannels).
-Una marca solo vive unos segundos en la lista de reproducción, así que una
-exploración cada minuto puede perder pausas cortas; lo que ves en pantalla se analiza siempre. Que un canal no
-muestre marcas no prueba que no las use: muchas cadenas insertan los anuncios en el servidor y no dejan rastro.
+Lo que no hace: no corta la publicidad ni la sustituye; solo silencia el reproductor o cambia lo que ves mientras dura
+la pausa, y no analiza la señal de radiofrecuencia de la TDT (solo los streams que enlazan las listas). Una marca solo
+vive unos segundos en la lista de reproducción, así que la exploración cada minuto puede perder pausas cortas; el canal
+que tienes puesto se sigue cada segundo. Que un canal no muestre marcas no prueba que no las use: muchas cadenas
+insertan los anuncios en el servidor y no dejan rastro.
 
 ## Sacar el enlace de un directo desde tu navegador
 
@@ -385,21 +416,14 @@ que bajarlo no hace que el igualador lo suba otra vez. Funciona también con la 
 se puede procesar (va en un iframe ajeno); el navegador solo permite procesar audio tras un primer clic o tecla en la
 página; y como mide en directo y sin mirar adelante, es un control aproximado, no una normalización EBU R128 estricta.
 
-**El sonido del reproductor de Atresplayer** tampoco se puede tocar desde fuera (otro origen), pero con el
-[puente](#publicidad-en-el-reproductor-de-atresplayer) **instalado como extensión** (la carpeta entera
-`tools/puente-atresplayer`, que lleva `audio-chain.js`) sí: TDT local le manda los ajustes del canal (igualador de
-volumen y ecualizador, globales o propios) y el puente aplica la misma cadena **dentro** del reproductor, sobre su
-`<video>`; el diálogo «Sonido» muestra lo que oye y corrige. El volumen y el silencio funcionan igual que antes. Con el
-script pegado solo en Tampermonkey o en la consola no hay igualador ni ecualizador (solo silencia y avisa de la
-publicidad). `audio-chain.js` se genera a partir del código de la página con `python scripts/build_bridge.py`, y una
-prueba falla si se queda desfasado.
+**El sonido de un reproductor incrustado** (Atresplayer, YouTube) no se puede procesar desde aquí: va en un iframe de
+otro origen y su audio lo controla él.
 
 ## Durante la publicidad
 
 **Ajustes ▸ Durante la publicidad** permite que la página reaccione cuando el canal que estás viendo entra en una pausa
-de anuncios. Hay dos formas de enterarse: con un canal con stream, la vigilancia de marcas (solo actúa si el canal envía
-la marca SCTE-35; La Sexta, por ejemplo, la envía); y con el reproductor incrustado de Atresmedia, el
-[script del puente](#publicidad-en-el-reproductor-de-atresplayer).
+de anuncios. El servidor sigue su playlist, detecta la marca SCTE-35 y avisa a la página ya sincronizado con la imagen
+(descuenta el retardo del directo: 18 s en Atresmedia, 0 en Mediaset).
 
 - **Aviso fijo:** un rótulo rojo «PUBLICIDAD» sobre la imagen mientras dura la pausa (se puede desactivar).
 
@@ -407,65 +431,14 @@ la marca SCTE-35; La Sexta, por ejemplo, la envía); y con el reproductor incrus
 - **Con la imagen:** dejarla, cambiar a otro canal (por nombre o identificador) o mostrar una web sobre la imagen.
   Algunas webs no permiten que se muestren dentro de otra página: el botón **Comprobar** de los ajustes lo avisa. Solo se
   permite esa dirección en la política de seguridad de la página.
-- **Cuándo termina:** al llegar la marca de fin de pausa, o cuando pasa la duración que dice la marca (más 3 s). Si la
-  marca no dice cuánto dura, se supone el tiempo que indiques (120 s por defecto). Al cambiar de canal, en vista simple el
-  canal original **sigue en segundo plano** (en otra casilla, fuera de la vista y silenciado): así se sigue viendo cuándo
-  acaba la pausa, se vuelve a él al instante y no hay que cargarlo otra vez (el reproductor de Atresplayer, al cargarse,
-  empieza siempre con un anuncio y volvería a provocar otro cambio). En multivisión se cambia la propia casilla y se vuelve
-  por tiempo; para no entrar en bucle, un anuncio que aparece en los 90 s siguientes a volver a cargar un canal no provoca
-  otro cambio.
+- **Cuándo termina:** al llegar la marca de fin de pausa, o cuando pasa la duración que dice la marca más el margen
+  (18 s en Atresmedia, 5 s en Mediaset). Si la marca no dice cuánto dura, se supone el tiempo que indiques (120 s por
+  defecto). Al cambiar de canal, en vista simple el canal original **sigue en segundo plano** (en otra casilla, fuera de
+  la vista y silenciado): así se sigue viendo cuándo acaba la pausa y se vuelve a él al instante. En multivisión se
+  cambia la propia casilla y se vuelve por tiempo.
 - **Pausas cortas:** se ignoran las que dicen durar menos de unos segundos (10 por defecto).
-- **El anuncio de arranque:** en el reproductor de Atresplayer, el anuncio que sale al pulsar «Directo» (o cuando el
-  reproductor se reinicia) llega sin programa antes. Ese anuncio solo silencia y muestra el rótulo; **no cambia de canal**,
-  porque dura unos segundos y, si el reproductor se reinicia al volver, provocaría un bucle (pulsar «Directo», anuncio,
-  cambio de canal, volver, «Directo»…). Se considera de arranque el que llega con menos de 20 s de programa seguidos
-  antes, y para saberlo el puente cuenta si el reproductor está emitiendo. Las pausas que llegan después de 20 s o más de
-  programa sí cambian de canal.
 - **Si tocas algo durante la pausa** (el volumen o el canal): puedes elegir *respetar lo que hagas*, de modo que no se
   deshaga nada más, o *dejarlo todo como estaba* al terminar la pausa (volumen anterior y canal original).
-
-### Publicidad en el reproductor de Atresplayer
-
-> **La guía completa de la extensión** (qué hace y qué no, instalación paso a paso, cómo comprobarla, problemas
-> frecuentes y cómo funciona) está en [tools/puente-atresplayer/LEEME.md](tools/puente-atresplayer/LEEME.md). Lo que sigue
-> es el resumen.
-
-El reproductor incrustado de Atresplayer está en otro origen y el navegador no deja que TDT local vea lo que pasa dentro; el
-reproductor tampoco avisa al exterior. Lo que sí hay dentro es el aviso «Publicidad» que te enseña a ti. Para que TDT local
-se entere hay que poner en marcha `tools/puente-atresplayer` en **tu** navegador: se ejecuta dentro del reproductor, lee ese
-aviso y se lo cuenta a TDT local con un mensaje. Con eso TDT local muestra su aviso fijo, cambia de canal o abre una web, y
-puede **silenciar el sonido** del reproductor mientras dura la pausa (y con la tecla `M`), también en multivisión: la casilla
-activa suena y las demás se silencian, y al rotar el audio el puente lo sigue. Sin el puente, en multivisión los
-reproductores de Atresplayer sonarían a la vez en cuanto pulsas «Directo» en cada uno, y la casilla lo avisa. No hace
-peticiones, no salta ni toca la publicidad y solo habla con la página de TDT local que lo incrusta (en Chrome, Edge y Brave
-comprueba que es `127.0.0.1` o `localhost`).
-
-**Cómo ponerlo en marcha**, en el navegador donde abres TDT local (hay tres formas; la primera no necesita gestor de scripts):
-
-1. **Como extensión** (recomendado): la carpeta `tools/puente-atresplayer` es una extensión sin permisos. En
-   `brave://extensions`, `chrome://extensions` o `edge://extensions` activa el **Modo de desarrollador**, pulsa **Cargar
-   descomprimida** y elige esa carpeta. Chrome avisa al arrancar de que hay extensiones sin publicar.
-2. **Con Tampermonkey o Violentmonkey:** crea un script nuevo y pega `tools/puente-atresplayer/puente.user.js`. En las
-   versiones recientes de Chrome, Edge y Brave estas extensiones piden además activar **«Permitir scripts de usuario»** en
-   sus detalles (y, según la versión, el modo de desarrollador); sin eso el script no se ejecuta.
-3. **Prueba suelta, sin instalar nada:** con TDT local abierto en un canal de Atresmedia, F12 ▸ Consola, elige en el
-   desplegable «top» el contexto de `atresplayer.com` y pega el archivo. Vale hasta que recargues la página.
-
-**Cómo saber que funciona:** al abrir un canal de Atresmedia, la línea bajo el nombre del canal dice «puente activo»; si a
-los 6 segundos no ha dado señales, dice «puente no detectado». El script escribe en la consola (F12) mensajes que empiezan
-por «[TDT puente]». Pegarlo en la consola de la página de TDT local, o de la pestaña suelta del reproductor, solo comprueba
-que el código se ejecuta: no lo deja conectado a la casilla.
-
-**Qué mira el puente:** dos textos del propio reproductor, visibles en la parte de arriba: el corto «Publicidad» (el anuncio que
-sale al pulsar «Directo», unos 25 s, comprobado sobre el reproductor real) y el aviso «El canal que estás viendo en directo se
-encuentra en estos momentos en publicidad» de las pausas del directo (visto en una captura, no comprobado en directo por el
-programa). Los dos desaparecen al terminar. Si el reproductor usa otro texto, el puente no lo verá: se añade a la lista
-`FRASES` del script, y la consola dice qué texto ha visto en cada pausa («[TDT puente] publicidad: empieza (…)»). «Bajar el volumen» silencia en vez de bajar, porque el puente solo
-sabe silenciar.
-
-La reacción se calcula para el momento en que la pausa *se ve*, no cuando se encuentra la marca, que llega a la lista
-unos segundos antes. Si abres el canal con la pausa ya empezada, se une a lo que queda. El canal cambiado no se guarda
-como «último canal visto». Todo es desactivable y está desactivado por defecto.
 
 ## Seguridad
 

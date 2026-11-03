@@ -9,7 +9,7 @@ from pathlib import Path
 from .net import Net
 from .store import Store
 
-MAX_LOGO_BYTES = 1_000_000
+MAX_LOGO_BYTES = 2_000_000
 MAX_COVER_BYTES = 3_000_000  # U7D programme covers
 FAILURE_TTL = 6 * 3600  # do not retry a broken logo URL for this long
 
@@ -18,7 +18,17 @@ _MAGIC = [
     (b"\xff\xd8\xff", "image/jpeg", ".jpg"),
     (b"GIF8", "image/gif", ".gif"),
 ]
-EXT_TYPE = {".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
+EXT_TYPE = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+    ".svg": "image/svg+xml",
+}
+# An SVG is served from our own origin: a script inside it would run with the page's session. Only the
+# plain shapes the channel lists use are accepted; anything executable is refused.
+SVG_FORBIDDEN = (b"<script", b"<foreignobject", b"javascript:", b"onload=", b"onerror=", b"onclick=")
 
 
 def sniff_image(data: bytes) -> tuple[str, str] | None:
@@ -28,6 +38,14 @@ def sniff_image(data: bytes) -> tuple[str, str] | None:
             return ctype, ext
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "image/webp", ".webp"
+    # Facebook's graph returns AVIF to a client that accepts image/*: it is an image too.
+    if data[4:8] == b"ftyp" and data[8:12] in (b"avif", b"avis"):
+        return "image/avif", ".avif"
+    head = data[:512].lstrip().lower()
+    if head.startswith((b"<?xml", b"<svg")):
+        if any(token in data.lower() for token in SVG_FORBIDDEN):
+            return None
+        return "image/svg+xml", ".svg"
     return None
 
 

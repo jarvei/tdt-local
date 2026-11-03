@@ -1,9 +1,6 @@
 // Reacting to an ad break (SCTE-35): the decisions, as pure functions. adbreak.js is the one that acts on them.
 import { findChannel } from './commands.js';
 
-/** An ad that comes with less programme than this before it is the player's start-up ad, not a break of the channel. */
-export const PREROLL_CONTENT_SECONDS = 20;
-
 /** Seconds after the announced end of a break before giving up waiting for the "break is over" marker. */
 export const END_MARGIN = 3;
 

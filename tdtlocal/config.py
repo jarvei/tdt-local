@@ -10,7 +10,11 @@ from .paths import default_data_dir, default_models_dir
 PACKAGE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = PACKAGE_DIR.parent
 
-TV_SOURCE = "https://raw.githubusercontent.com/LaQuay/TDTChannels/master/TELEVISION.md"
+# The channel list of the TDT Spain app: 248 visible channels with groups, logos and `epgid`, and the
+# recipe its player uses for each stream (RTVE, Atresplayer, Mediaset, Dailymotion, embedded pages).
+TV_SOURCE = "https://www.tdtspain.com/canales/canalesv4.json"
+# The previous source: a Markdown table maintained by the TDTChannels project. Still accepted by --source.
+TDTCHANNELS_TV_SOURCE = "https://raw.githubusercontent.com/LaQuay/TDTChannels/master/TELEVISION.md"
 RADIO_SOURCE = "https://raw.githubusercontent.com/LaQuay/TDTChannels/master/RADIO.md"
 # XMLTV guides published by TDTChannels; the "EPG ID" column of the lists matches their channel ids.
 EPG_SOURCES = {
@@ -70,8 +74,9 @@ class Config:
     whisper_idle_minutes: int = 10  # a whisper-server we launched stops after this long without work
     whisper_autostart: bool = True  # launch our own whisper-server when none answers
 
-    # SCTE-35 / ad-break watcher (see scte_watch.py)
-    scte_enabled: bool = False
+    # SCTE-35 / ad-break watcher (see scte_watch.py). On by default: the page follows the tuned
+    # channel and mutes the break, the way the TDT Spain app's AdMute does.
+    scte_enabled: bool = True
     scte_scope: str = "viewing"  # "viewing" (what is being played), "list" (scte_channels) or "all"
     scte_channels: str = ""  # comma-separated channel names or ids, for scope "list"
     scte_interval: int = 60  # seconds between active scans
@@ -80,7 +85,7 @@ class Config:
     scte_keep: int = 2000  # events kept in the log
 
     # what the page does while an ad break is on (see static/js/adbreak.js); needs scte_enabled
-    ad_enabled: bool = False
+    ad_enabled: bool = True
     ad_flag: bool = True  # a fixed "PUBLICIDAD" notice over the picture while the break lasts
     ad_audio: str = "mute"  # "keep", "mute" or "lower" (to ad_lower_percent of the volume)
     ad_lower_percent: int = 25

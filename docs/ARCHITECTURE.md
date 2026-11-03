@@ -87,19 +87,13 @@ clásico que define `Hls` antes.
 - La guía extra (`epg.py`: `sync_extra`, `extra_ids`): los canales propios con `epg` que ninguna guía de las listas cubre se leen
   de un XMLTV comunitario (`epg_extra_source`, unos 35 MB), con `iterparse` y quedándose solo con esos canales, para no
   cargar el archivo entero en memoria; sin entidades XML. Se guarda en `store.epg["extra"]` y `payload` la sirve como a las demás.
-- `lib/bridge.js` — los mensajes con el script puente (`tools/puente-atresplayer`, con su guía en `LEEME.md`: una extensión sin permisos, o un script de usuario, que el usuario instala en su
-  navegador y que corre dentro del reproductor de Atresplayer): solo cuenta lo que dice el iframe de la propia casilla,
-  desde el origen de Atresplayer. El puente cuenta si hay «Publicidad» (`state`) y obedece órdenes de audio (`audio`);
-  sin él no se dice ni pasa nada.
-- `lib/embeds.js` — los canales de Atresmedia que se añaden con un clic (`GROUPS`) y el reconocimiento del reproductor
-  oficial incrustable de Atresplayer (`/embed/live/<canal>/`), que `tile.js` muestra en un `<iframe>` como el de YouTube,
-  pero sin órdenes por `postMessage` (no se puede silenciar). Mediaset no se incrusta: su `frame-ancestors` lo prohíbe.
+- `lib/embeds.js` — reconoce el reproductor oficial incrustable de Atresplayer (`/embed/live/<canal>/` y
+  `/embed/video/<id>/`), que `tile.js` muestra en un `<iframe>` como el de YouTube. Se usa para las grabaciones de U7D y
+  para un canal de Atresmedia sin id en la API; los 17 del catálogo van por su HLS. Mediaset no se incrusta: su
+  `frame-ancestors` lo prohíbe.
 - `lib/addlink.js` — lee los enlaces `#add=…` que abren el diálogo «Añadir canal» ya relleno (los genera
   `tools/capturar-directo.js`, un fragmento para pegar en la consola del navegador, fuera del paquete). Solo acepta
   http(s) y nunca añade nada sin que se pulse el botón; `dialogs.js` borra el fragmento de la barra de direcciones.
-- `scripts/build_bridge.py` — empaqueta `lib/audio.js` y `audio.js` como un script normal (`audio-chain.js`) para la
-  extensión del puente, cuyos content scripts no pueden importar módulos. El resultado se versiona, y una prueba
-  (`tests/test_bridge_build.py`) falla si se desfasa; los mensajes `fx` (ajustes) y `meter` (medida) van por `lib/bridge.js`.
 - `audio.js` — la cadena de sonido de una casilla con la Web Audio API: `<video>` → ganancia del igualador → 10 filtros
   del ecualizador → limitador, más una rama que mide la sonoridad (ponderación K) con un `AnalyserNode`. El `<video>`
   conserva su volumen y su silencio, que se aplican antes de la cadena, y la medida los descuenta. El `<video>` solo se

@@ -1,5 +1,5 @@
 // Plugins of the desktop app. A plugin is a folder with a `manifest.json` in the format of the content scripts of a Chrome
-// extension, so the same folder also loads as an extension in a normal browser (tools/puente-atresplayer does).
+// extension, so the same folder also loads as an extension in a normal browser (tools/atresplayer-u7d does).
 //
 //   { "name": "...", "version": "1.0", "description": "...",
 //     "content_scripts": [ { "matches": ["https://example.com/embed/*"], "js": ["a.js", "b.js"], "all_frames": true } ] }

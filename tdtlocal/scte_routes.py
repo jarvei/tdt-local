@@ -99,12 +99,30 @@ def handle_get(handler: Handler, path: str) -> bool:
 
 def handle_post(handler: Handler, path: str) -> bool:
     """Answer the routes that change something. ``False`` if ``path`` is not one of them."""
-    if path not in ("/api/scte/scan", "/api/scte/clear"):
+    if path not in ("/api/scte/scan", "/api/scte/clear", "/api/scte/watch", "/api/scte/unwatch"):
         return False
+    watcher = handler.app.scte
+    if path in ("/api/scte/watch", "/api/scte/unwatch"):
+        # Sent by the page when the channel changes: it does not touch the machine's settings, so it
+        # is allowed from the LAN too. Only one channel is followed at a time.
+        body = handler._body()
+        cid = str(body.get("c") or "")
+        if path == "/api/scte/watch":
+            if not cid:
+                handler._json(400, {"ok": False, "error": "falta c"})
+                return True
+            try:
+                out = handler.app.watch_ads(cid)
+            except ValueError as exc:
+                handler._json(404, {"ok": False, "error": str(exc)})
+                return True
+            handler._json(200 if out.get("ok") else 409, out)
+        else:
+            handler._json(200, {"ok": True, "stopped": watcher.unwatch(cid)})
+        return True
     if not _from_this_machine(handler):
         handler._json(403, {"error": "solo se puede hacer desde el propio equipo"})
         return True
-    watcher = handler.app.scte
     if path == "/api/scte/scan":
         accepted, reason = watcher.request_scan()
         handler._json(200 if accepted else 409, {"ok": accepted, "error": reason})

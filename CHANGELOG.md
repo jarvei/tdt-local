@@ -3,6 +3,45 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); el proyecto sigue
 [SemVer](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+**La lista de canales pasa a ser la de la app TDT Spain y la publicidad se silencia sola**, con el motor de
+`tdt-datos` y la misma lógica de la app (`AdMute`).
+
+### Funciones
+- **Catálogo de TDT Spain** (`canalesv4.json`, 248 canales visibles) en lugar de la lista de TDTChannels para la tele:
+  grupos, logos, `epgid` y los 17 canales de Atresmedia, los 14 de Mediaset y las autonómicas y locales que la otra
+  lista no traía. La radio sigue en `RADIO.md`.
+- **Resolvedores del catálogo**, en `tdtlocal/tdtspain.py`: HLS de RTVE sin DRM, HLS de Atresplayer para los 17 canales
+  (con su SCTE-35 dentro), DAI de Mediaset (login anónimo → `playback/check` → `pubads`), Dailymotion, páginas con el
+  directo dentro y el GraphQL de Aragón TV. Los enlaces con tokens se resuelven al sintonizar (`/api/tdtspain/play`), no
+  al arrancar.
+- **La publicidad de Atresmedia también se silencia desde el servidor**: los 17 canales (los seis principales y los once
+  temáticos) se reproducen por su HLS —los ids de los temáticos se sacaron del bundle del reproductor—, no por el iframe;
+  el `SCTE35-CMD` se clasifica por su `segmentation_type`, no por el nombre del tag.
+- **Se retira el puente de Atresplayer** (`tools/puente-atresplayer`, `lib/bridge.js` y el botón «Añadir Atresmedia»):
+  ya no hace falta para nada, porque los 17 canales van por su HLS y los silencia el servidor. La reacción a las pausas
+  se queda con lo que publica el vigilante; los iframes que queden (una grabación o un canal sin id) no se pueden
+  silenciar desde aquí y la página lo dice.
+- **Motor de publicidad de `tdt-datos`** (`tdtlocal/adwatch/`): sigue la variante de la playlist, decodifica SCTE-35,
+  entiende `CUE-OUT`/`CUE-IN`, los intersticiales de HLS, el ID3 `admode` de Mediaset y el `EventStream` del MPD.
+- **Auto-mute como la app TDT Spain**: el estado se evalúa con el retardo del directo (18 s; 0 en Mediaset), la pausa
+  se cierra con el `CUE-IN` o al cumplirse la duración (margen de 18 s, 5 s en Mediaset) y el `CUE-IN` temprano del DAI
+  se ignora. Activo por defecto; se apaga en Ajustes.
+- **`POST /api/scte/watch`**: la página avisa al servidor del canal que tiene puesto y el servidor lo sigue hasta que
+  cambie.
+
+### Correcciones
+- **Los iconos de los canales del catálogo de TDT Spain ya se ven**: el caché de logos acepta SVG (48 canales, sobre
+  todo RTVE y 3Cat) y AVIF (el que devuelve `graph.facebook.com` a quien pide `image/*`), y sube el tope de 2 MB para
+  los logos de ETB. El SVG se sirve con `Content-Security-Policy: sandbox` y se rechaza si trae scripts. Quedan 2 de
+  248 sin icono porque la URL del catálogo está muerta en origen.
+- **En tema oscuro los iconos van en negativo**: las fotos de Facebook (fondo blanco) se pasan a monocromo invertido y
+  el blanco se funde con el fondo; los logos de marca se quedan en monocromo claro; los SVG de RTVE y 3Cat, que ya son
+  blancos, no se tocan. En tema claro esos SVG se invierten a negro.
+- **Cerrar un vigilante ya no para los demás** (ni el bucle de la aplicación): cada uno tiene su propio evento de
+  cierre; el de la aplicación se comparte solo para apagarlos todos.
+
 ## [1.3.0] — 2026-11-01
 
 **Los instaladores llevan ahora la aplicación de escritorio** (ventana propia, bandeja y plugins) en lugar de abrir tu

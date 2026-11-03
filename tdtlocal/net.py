@@ -142,11 +142,17 @@ class Net:
     ) -> Any:
         """Open ``url`` after validating it. The caller must close the response."""
         url = url.replace(" ", "%20")
-        self.check_url(url, require_allowed)
-        opener = urllib.request.build_opener(_RedirectGuard(self), urllib.request.HTTPSHandler(context=self._ctx))
         merged = dict(DEFAULT_HEADERS)
         merged.update(headers or {})
-        return opener.open(urllib.request.Request(url, headers=merged), timeout=timeout)
+        return self.open_request(
+            urllib.request.Request(url, headers=merged), require_allowed=require_allowed, timeout=timeout
+        )
+
+    def open_request(self, request: urllib.request.Request, require_allowed: bool = True, timeout: float = 20) -> Any:
+        """Open a prepared request (a POST body included) after validating its URL. The caller closes it."""
+        self.check_url(request.full_url.replace(" ", "%20"), require_allowed)
+        opener = urllib.request.build_opener(_RedirectGuard(self), urllib.request.HTTPSHandler(context=self._ctx))
+        return opener.open(request, timeout=timeout)
 
     def stream_trusted(self, url: str, headers: dict[str, str] | None = None, timeout: float = 30) -> Any:
         """Open a fixed, program-defined URL (a model download) for streaming. The caller closes the response."""

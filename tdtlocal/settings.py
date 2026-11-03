@@ -195,7 +195,7 @@ FIELDS: tuple[Field, ...] = (
     Field("epg_tv_source", "lists", "url", EPG_SOURCES["tv"], max_length=MAX_URL, affects=("epg",)),
     Field("epg_radio_source", "lists", "url", EPG_SOURCES["radio"], max_length=MAX_URL, affects=("epg",)),
     # ad-break markers (SCTE-35)
-    Field("scte_enabled", "scte", "bool", False, affects=("scte",)),
+    Field("scte_enabled", "scte", "bool", True, affects=("scte",)),
     Field("scte_scope", "scte", "choice", "viewing", choices=SCTE_SCOPES, affects=("scte",)),
     Field("scte_channels", "scte", "text", "", max_length=MAX_URL, affects=("scte",)),
     Field("scte_interval", "scte", "int", 60, 10, 3600, affects=("scte",)),
@@ -203,7 +203,7 @@ FIELDS: tuple[Field, ...] = (
     Field("scte_notify", "scte", "bool", True),
     Field("scte_keep", "scte", "int", 2000, 100, 50000, affects=("scte",)),
     # what to do while an ad break is on (read by the page)
-    Field("ad_enabled", "ads", "bool", False),
+    Field("ad_enabled", "ads", "bool", True),
     Field("ad_flag", "ads", "bool", True),
     Field("ad_audio", "ads", "choice", "mute", choices=AD_AUDIO),
     Field("ad_lower_percent", "ads", "int", 25, 0, 90),

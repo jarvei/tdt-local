@@ -103,27 +103,13 @@ function useGlobal(part) {
   paint(true);
 }
 
-/** The line about the sound of Atresplayer's player, which is processed inside it by the bridge extension. */
-function atresReadout(tile, fx) {
-  if (!fx.level.on && !fx.eq.on) return 'Con todo desactivado, el sonido pasa tal cual.';
-  if (!tile.bridged) return 'El sonido de Atresplayer solo se puede procesar con el puente instalado como extensión (carpeta tools/puente-atresplayer).';
-  const meter = tile.atresMeter;
-  if (!meter || Date.now() - meter.at > 3000) {
-    return 'Esperando la medida del puente. Si no llega, el puente no es la extensión completa (hace falta la carpeta entera) o el reproductor aún no emite.';
-  }
-  return Number.isFinite(meter.loudness)
-    ? 'Ahora mismo (dentro de Atresplayer): «' + tile.c.name + '» llega a ' + Math.round(meter.loudness) + ' y el ajuste es ' + formatDb(meter.gainDb) + '.'
-    : 'No hay sonido que medir ahora mismo.';
-}
-
 function readout() {
   const tile = focusTile();
   const fx = audioFx(tile.c);
   let text;
   if (!audioSupported()) text = 'Este navegador no permite procesar el audio.';
   else if (!tile.c) text = '';
-  else if (tile.frame && tile.frameKind === 'atres') text = atresReadout(tile, fx);
-  else if (tile.frame) text = 'El sonido de YouTube no se puede procesar.';
+  else if (tile.frame) text = 'El sonido de un reproductor incrustado (Atresplayer o YouTube) lo controla él mismo.';
   else if (!fx.level.on && !fx.eq.on) text = 'Con todo desactivado, el sonido pasa tal cual.';
   else if (!awake()) text = 'El navegador aún no deja procesar el audio: haz clic en cualquier sitio de la página.';
   else if (!tile.chain) text = 'Preparando el procesado…';

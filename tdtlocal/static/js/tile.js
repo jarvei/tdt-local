@@ -4,7 +4,6 @@ import { postStt } from './api.js';
 import { el, fillLogo } from './dom.js';
 import { audioTarget, audioTouched } from './lib/adbreak.js';
 import { chainFor } from './audio.js';
-import { ATRES_ORIGIN, ContentClock, audioMessage, fxMessage, parseBridge } from './lib/bridge.js';
 import { buildPlan, originNote, usesHls } from './lib/plan.js';
 import { atresEmbed } from './lib/embeds.js';
 import { ytEmbed } from './lib/youtube.js';
@@ -12,7 +11,6 @@ import { parseU7d } from './lib/u7d.js';
 
 const ATTEMPT_TIMEOUT_MS = 15000;
 const MAX_NETWORK_RETRIES = 3;
-const BRIDGE_WAIT_MS = 6000; // how long to wait for the bridge script before saying it was not detected
 
 /**
  * What a tile needs from the application (keeps this file independent of the page's global state).
@@ -33,7 +31,7 @@ const BRIDGE_WAIT_MS = 6000; // how long to wait for the bridge script before sa
  * @property {(tile: Tile, text: string) => void} spoke - text transcribed on this tile (for voice alerts)
  * @property {(tile: Tile) => void} fragSeen - the player asked for a segment (an ad-break marker may be waiting for it)
  * @property {(tile: Tile, v: {v: number, m: boolean}) => void} adVolume - the user changed the audio during an ad break
- * @property {(tile: Tile, on: boolean, contentSeconds: number) => void} adExternal - the player inside the tile says an ad
+ * @property {(tile: Tile, value: {v: number, m: boolean}) => void} adVolume - the user changed the volume of the active tile during an ad break
  *   break starts or ends (and how long it had been showing programme)
  * @property {(c: object | null) => ({level: object, eq: object} | null)} audioFx - leveler and equalizer settings of a channel
  */
@@ -94,12 +92,7 @@ export class Tile {
 
     // YouTube lives in an <iframe> that swallows clicks: on inactive tiles an overlay catches them
     this.frame = null;
-    this.frameKind = ''; // 'youtube' (it takes commands) or 'atres' (its own player: only through the bridge script)
-    this.onBridge = null; // listener of the messages of the bridge script inside Atresplayer's player
-    this.bridged = false;
-    this.contentClock = new ContentClock();
-    this.atresMeter = null; // what the leveler inside Atresplayer's player last said: {loudness, gainDb, at}
-    this.bridgeTimer = 0; // tells the user when the bridge script has not shown up
+    this.frameKind = ''; // 'youtube' (it takes commands) or 'atres' (its own player: no API)
     this.flagEl = null; // the "PUBLICIDAD" notice
     // transcription (Whisper): session tag, subtitles and the timeline position of each segment
     this.tag = '';
@@ -144,16 +137,12 @@ export class Tile {
     this.video.volume = want.v;
     this.video.muted = want.m;
     if (this.frame && this.frameKind === 'youtube') this.ytCmd(want.m ? 'mute' : 'unMute');
-    if (this.frame && this.frameKind === 'atres') this.atresAudio(want);
     this.syncFx();
   }
 
   /** The leveler and equalizer of this tile's channel. The chain is only made when something needs it. */
   syncFx() {
-    if (this.frame) { // Atresplayer's player processes its own sound, if the bridge came as an extension
-      if (this.frameKind === 'atres') this.atresFx(this.host.audioFx(this.c));
-      return;
-    }
+    if (this.frame) return; // an embedded player has its own sound
     const fx = this.host.audioFx(this.c);
     if (!this.chain && fx && (fx.level.on || fx.eq.on)) this.chain = chainFor(this.video);
     if (this.chain && fx) this.chain.configure(fx);
@@ -163,34 +152,6 @@ export class Tile {
   setDuck(duck) {
     this.duck = duck;
     this.syncAudio();
-  }
-
-  /** Atresplayer's player has no API: the bridge script inside it (if the user installed it) can silence it. */
-  atresAudio(want) {
-    try {
-      this.frame.contentWindow.postMessage(audioMessage(want), ATRES_ORIGIN);
-    } catch { /* it has not loaded yet */ }
-  }
-
-  /** The leveler and equalizer for the sound of Atresplayer's player: the bridge applies them inside it. */
-  atresFx(fx) {
-    if (!fx) return;
-    try {
-      this.frame.contentWindow.postMessage(fxMessage(fx), ATRES_ORIGIN);
-    } catch { /* it has not loaded yet */ }
-  }
-
-  /** What the bridge script inside Atresplayer's player said. */
-  fromBridge(message) {
-    if (message.kind === 'ready') {
-      this.bridged = true;
-      this.setInfo('Reproductor de Atresplayer · puente activo (se avisa de la publicidad)');
-      this.syncAudio();
-    } else if (message.kind === 'ad') {
-      this.host.adExternal(this, message.on, this.contentClock.update(message, Date.now()));
-    } else if (message.kind === 'meter') {
-      this.atresMeter = { loudness: message.loudness, gainDb: message.gainDb, at: Date.now() };
-    }
   }
 
   /** The fixed "PUBLICIDAD" notice over the picture, while an ad break lasts. */
@@ -375,11 +336,6 @@ export class Tile {
     this.clearSub();
     this.hideAdFrame();
     this.setAdFlag(false);
-    if (this.onBridge) { window.removeEventListener('message', this.onBridge); this.onBridge = null; }
-    clearTimeout(this.bridgeTimer);
-    this.bridged = false;
-    this.atresMeter = null;
-    this.contentClock = new ContentClock();
     if (this.frame) { this.frame.remove(); this.frame = null; this.frameKind = ''; }
     this.root.classList.remove('yt');
     this.video.removeAttribute('src');
@@ -412,6 +368,7 @@ export class Tile {
     this.failed = false;
     this.info = '';
     this.draw();
+    this.watchAds(c);
     if (this.chain) this.chain.reset(); // another channel: measure it afresh
     this.failCode = 0;
     this.reason = ''; // why the last attempt failed, when the server said so (U7D)
@@ -453,6 +410,17 @@ export class Tile {
   }
 
   retryAction(c) { return [{ label: 'Reintentar', primary: true, fn: () => this.play(c) }]; }
+
+  // Tell the server which channel is on screen: it follows its playlist and reports the ad breaks
+  // already timed for the picture (see scte_watch.py). One channel at a time, so this replaces the last.
+  watchAds(c) {
+    if (!c || c.kind !== 'tv') return;
+    fetch('/api/scte/watch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ c: c.id }),
+    }).catch(() => {});
+  }
 
   attempt(c, plan, idx, token) {
     if (token !== this.token) return;
@@ -511,7 +479,9 @@ export class Tile {
     const embed = ytEmbed(step.u);
     const atres = atresEmbed(step.u);
     const u7d = parseU7d(step.u);
-    if (u7d) {
+    if (String(step.u).startsWith('tdtspain://')) {
+      this.attachTdtspain(step.u, s, { fail, success, lost, startPlay });
+    } else if (u7d) {
       this.attachU7d(u7d, s, { fail, success, lost, startPlay });
     } else if (embed) {
       this.attachYoutube(c, embed, success);
@@ -522,6 +492,22 @@ export class Tile {
     } else {
       this.attachDirect(url, s, { fail, success, lost, startPlay });
     }
+  }
+
+  // TDT Spain: the list gives a recipe, not a URL (RTVE's token, Mediaset's DAI session, a page with the
+  // stream embedded). The server follows it now, because those URLs expire in a couple of hours.
+  attachTdtspain(source, s, handlers) {
+    const cid = String(source).slice('tdtspain://'.length);
+    fetch('/api/tdtspain/play?c=' + encodeURIComponent(cid))
+      .then((r) => r.json())
+      .then((d) => {
+        if (this.session !== s) return; // another channel was chosen meanwhile
+        if (!d.url) throw new Error(d.error || 'sin URL');
+        const url = '/proxy?u=' + encodeURIComponent(d.url) + '&c=' + encodeURIComponent(this.c.id) + '&s=' + this.tag;
+        if (typeof Hls !== 'undefined' && Hls.isSupported()) this.attachHls(url, s, handlers);
+        else this.attachDirect(url, s, handlers);
+      })
+      .catch((err) => { this.reason = String((err && err.message) || err); handlers.fail(); });
   }
 
   // U7D: the server resolves a recorded programme to an HLS list, which then plays like any channel
@@ -565,25 +551,13 @@ export class Tile {
     f.setAttribute('allowfullscreen', '');
     f.addEventListener('load', () => {
       success();
-      // without the bridge script its sound cannot be silenced from here: in multi-view they would play together
-      this.setInfo('Reproductor de Atresplayer · pulsa «' + (c.vod ? 'Reproducir' : 'Directo') + '»'
-        + (this.host.mode() === 'multi' && !this.bridged ? ' (sin el script del puente no se puede silenciar)' : ''));
-      clearTimeout(this.bridgeTimer);
-      this.bridgeTimer = setTimeout(() => {
-        if (!this.bridged && this.frameKind === 'atres') {
-          this.setInfo('Reproductor de Atresplayer · puente no detectado (¿instalada la extensión o el script del puente?)');
-        }
-      }, BRIDGE_WAIT_MS);
+      // its own player: no API, so neither the sound nor the ads can be controlled from here
+      this.setInfo('Reproductor de Atresplayer · pulsa «' + (c.vod ? 'Reproducir' : 'Directo') + '»');
     });
     this.frame = f;
     this.frameKind = 'atres';
     this.root.classList.add('yt');
     this.root.insertBefore(f, this.cover);
-    this.onBridge = (event) => {
-      const message = parseBridge(event, f.contentWindow);
-      if (message) this.fromBridge(message);
-    };
-    window.addEventListener('message', this.onBridge);
     f.src = embed;
   }
 
