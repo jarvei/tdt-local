@@ -3,9 +3,9 @@
 Visor web **local** para ver la TDT española y escuchar la radio en el PC, sin abrir las apps de cada cadena.
 
 Este repositorio es un **fork de [cibernicola/tdt-local](https://github.com/cibernicola/tdt-local)** (Apache-2.0).
-La tele ya no sale de la lista de TDTChannels: sale del catálogo de la aplicación **TDT Spain**
+La tele sale del catálogo de la aplicación **TDT Spain**
 (`canalesv4.json`, 248 canales con sus grupos, logos y guía, y los directos de RTVE, Atresmedia, Mediaset y las
-autonómicas resueltos como los resuelve esa app). La radio sigue viniendo de las listas públicas de
+autonómicas resueltos como los resuelve esa app). La radio viene de las listas públicas de
 [TDTChannels](https://github.com/LaQuay/TDTChannels). La publicidad se detecta con el motor de
 [`tdt-datos`](https://github.com/cibernicola/tdt-datos) y se silencia sola, con las reglas de la app TDT Spain.
 
@@ -51,7 +51,7 @@ más ideas).
 
 | Característica | Estado |
 |---|---|
-| Catálogo de TDT Spain para la tele (248 canales, cada 6 h, con ETag) y radio de TDTChannels | ✅ Hecho |
+| Catálogo de TDT Spain para la tele (248 canales, cada 6 h, con ETag) y radio de las listas públicas | ✅ Hecho |
 | Reproducción de directos HLS con proxy local | ✅ Hecho |
 | Radio (unas 980 emisoras, con su logo en lugar de vídeo) | ✅ Hecho |
 | Comprobar qué canales y emisoras responden | ✅ Hecho |
@@ -200,7 +200,7 @@ bloqueado y no se escribe en `settings.json`. Orden de prioridad: valores por de
 --data-dir DIR        carpeta de datos (por defecto ./data, o la carpeta de usuario si está instalado)
 --interval HORAS      horas entre actualizaciones (6)
 --auto-check          comprobar los streams de la tele tras cada actualización
---source URL          otro catálogo (JSON de TDT Spain o TELEVISION.md de TDTChannels)
+--source URL          otro catálogo (JSON de TDT Spain o una lista Markdown)
 --radio-source URL    otra copia de RADIO.md
 --epg-source URL      otro XMLTV (.xml o .xml.gz) para la tele
 --radio-epg-source URL  otro XMLTV para la radio
@@ -253,8 +253,8 @@ Cada canal se reproduce como la app resuelve su directo:
 | Solo DASH (`.mpd`) | los cinco canales de ETB que solo emiten así | quedan como «solo web»: el navegador no reproduce DASH |
 
 Los que necesitan una receta (Mediaset, Atresplayer, Dailymotion, las páginas) **no se resuelven al arrancar**: se
-resuelven al sintonizar, porque sus enlaces llevan tokens que caducan en minutos. Se puede volver a la lista de
-TDTChannels con `--source` y la URL de su `TELEVISION.md`.
+resuelven al sintonizar, porque sus enlaces llevan tokens que caducan en minutos. Con `--source` se puede usar otra
+lista en formato Markdown.
 
 ## Marcas de anuncios y auto-mute
 
@@ -422,4 +422,4 @@ models/              (no se versiona) modelo de Whisper
 
 [Apache License 2.0](LICENSE). Es libre: puedes usarlo, modificarlo y redistribuirlo, incluso con fines comerciales,
 **a condición de citar su origen**: conserva el aviso de copyright, el fichero [NOTICE](NOTICE) (con la cita del
-proyecto original, TDTChannels, TDT Spain, hls.js y el resto) y marca los cambios que hagas.
+proyecto original, TDT Spain, hls.js y el resto) y marca los cambios que hagas.
