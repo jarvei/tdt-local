@@ -11,13 +11,19 @@ Software and data this product is based on
 
 TDTChannels  https://github.com/LaQuay/TDTChannels
   Licence: Apache License 2.0 (repository contents).
-  The channel and radio lists (TELEVISION.md, RADIO.md) that TDT local reads are the
+  The radio list (RADIO.md) and the programme guides (XMLTV) that TDT local reads are the
   work of the TDTChannels project and its contributors. They are downloaded when the
-  program runs and are not distributed with it. The programme guides (XMLTV) are served
+  program runs and are not distributed with it. The guides are served
   by tdtchannels.com and ondachannels.com and are additionally subject to the legal
   notice published there (https://www.tdtchannels.com/aviso-legal/).
   TDTChannels does not store any stream: it links to those that broadcasters publish
   openly. Broadcast rights belong to the broadcasters.
+
+TDT Spain  https://www.tdtspain.com/
+  The television channel catalogue (canalesv4.json) that TDT local reads is published by
+  the TDT Spain app. It is downloaded when the program runs and is not distributed with
+  it. It only lists the live streams that broadcasters publish openly; broadcast rights
+  belong to the broadcasters.
 
 hls.js  https://github.com/video-dev/hls.js
   Copyright (c) 2017 Dailymotion (http://www.dailymotion.com)

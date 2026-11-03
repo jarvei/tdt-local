@@ -3,10 +3,11 @@
 [![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
 > [!WARNING]
-> **Esto es un cacharro personal que se escapó.** Versión incipiente, hecha para mi uso y publicada porque
-> varios me lo pedisteis. Está «vibecodeado» con IA, así que los bichos y los agujeros de seguridad son más
-> probables que improbables. Úsalo con cariño, no lo expongas a internet y lee la
-> [letra pequeña](#letra-pequeña-con-cariño). Las críticas, las *issues* y los *pull requests* son bienvenidos.
+> **Fork personal de TDT local.** Versión incipiente, publicada tal cual. Está «vibecodeado» con IA, así que los
+> bichos y los agujeros de seguridad son más probables que improbables. Úsalo con cariño, no lo expongas a internet y
+> lee la [letra pequeña](#letra-pequeña-con-cariño). El proyecto original es de
+> [cibernicola](https://github.com/cibernicola/tdt-local); este fork añade el catálogo de la app TDT Spain y el
+> auto-mute de la publicidad. Las críticas, las *issues* y los *pull requests* son bienvenidos.
 
 Visor web **local** para ver la TDT española y escuchar la radio en el PC sin las apps de cada
 cadena. La tele sale del catálogo de la aplicación **TDT Spain** (`canalesv4.json`: 248 canales con
@@ -467,7 +468,6 @@ Para avisar de un problema de seguridad, mira [SECURITY.md](SECURITY.md).
 - Si cierras el servidor a la fuerza (sin Ctrl+C) puede quedar un `whisper-server` huérfano.
 - Si la lista descargada trae menos de 50 canales (30 en radio) se descarta y se conserva la
   anterior, por si el formato del repositorio de origen cambia.
-- Los logos de `graph.facebook.com` de la lista ya no cargan; se muestran las iniciales.
 
 ## Desarrollo
 
@@ -495,9 +495,11 @@ models/              (no se versiona) modelo de Whisper
 
 ## Créditos, licencia y aviso
 
-- Las listas de canales y las guías son de [TDTChannels](https://github.com/LaQuay/TDTChannels)
+- Las **listas de radio** y las **guías** son de [TDTChannels](https://github.com/LaQuay/TDTChannels)
   (Apache-2.0; las guías las sirven tdtchannels.com y [Onda Channels](https://www.ondachannels.com/) y están sujetas a su
   [aviso legal](https://www.tdtchannels.com/aviso-legal/)). Sin su trabajo esto no existiría.
+- El **catálogo de canales de la tele** es el de la aplicación [TDT Spain](https://www.tdtspain.com/)
+  (`canalesv4.json`): se descarga al arrancar y no se redistribuye. Sus directos son los que publican las cadenas.
 - La **guía extra** de los canales de Atresmedia (programación e iconos) viene de
   [EPG_dobleM](https://github.com/davidmuma/EPG_dobleM) y [picons_dobleM](https://github.com/davidmuma/picons_dobleM),
   de David Muma: archivos de terceros, que no se incluyen y que se descargan solo si activas esa guía. Comprueba sus
