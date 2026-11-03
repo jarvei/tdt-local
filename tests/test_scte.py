@@ -408,6 +408,21 @@ class WatcherTests(AppCase):
             self.scte.observe("https://h.example/a.m3u8", BREAK)
         self.assertEqual(len(self.scte.log), 4)
 
+    def test_watch_uses_the_stream_when_youtube_comes_first(self):
+        channel = {
+            "id": "mix",
+            "name": "Mix",
+            "sources": ["https://www.youtube.com/@x/live", "https://h.example/a.m3u8"],
+        }
+        with mock.patch("tdtlocal.adwatch.Vigilance.start"):
+            out = self.scte.watch(channel)
+        self.assertTrue(out["ok"])
+        self.scte.unwatch()
+
+    def test_watch_refuses_a_channel_without_a_stream(self):
+        channel = {"id": "yt", "name": "YT", "sources": ["https://www.youtube.com/@x/live"]}
+        self.assertFalse(self.scte.watch(channel)["ok"])
+
     def test_a_marker_in_a_long_dvr_window_is_not_reported_every_few_minutes(self):
         self.scte.observe("https://h.example/a.m3u8", BREAK)
         with mock.patch("tdtlocal.scte_watch.time.time", return_value=time.time() + 3600):
@@ -589,6 +604,12 @@ class RouteTests(ServerCase):
     def add_events(self, count=3):
         for n in range(count):
             self.app.scte.observe(f"https://h{n}.example/a.m3u8", BREAK)
+
+    def test_watch_errors_are_answered_with_502(self):
+        with mock.patch.object(self.app, "watch_ads", side_effect=RuntimeError("sin red")):
+            status, data = self.post_json("/api/scte/watch", {"c": "x"})
+        self.assertEqual(status, 502)
+        self.assertFalse(data["ok"])
 
     def test_listing_with_after_limit_and_summary(self):
         self.add_events(2)

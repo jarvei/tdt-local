@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import json
+import tempfile
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from unittest.mock import patch
 
 from tdtlocal import tdtspain
+from tdtlocal.app import App
+from tdtlocal.config import Config
 
 OUT = "FC302500000000000000FFF014056AE836907FEFFE856F8090FE007B98A0000000000000E44A55DC"
 
@@ -227,6 +233,46 @@ class ResolveTests(unittest.TestCase):
     def test_a_channel_without_a_recipe_is_refused(self):
         with self.assertRaises(ValueError):
             tdtspain.resolve(self.channels["La 1"], object())
+
+
+class ResolveCacheTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.app = App(Config(data_dir=Path(self.tmp.name)))
+        self.app.store.channels = [
+            {
+                "id": "x",
+                "name": "X",
+                "kind": "tv",
+                "category": "Televisión",
+                "group": "",
+                "sources": ["tdtspain://x"],
+                "fmts": [""],
+                "web": "",
+                "logo": "",
+                "epg": "",
+                "tags": [],
+                "tdtspain": {"streamtype": "geturl"},
+            }
+        ]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_the_same_channel_is_resolved_once(self):
+        with patch("tdtlocal.app.tdtspain.resolve", return_value={"url": "https://x/a.m3u8", "headers": {}}) as resolve:
+            self.app.resolve_channel("x")
+            self.app.resolve_channel("x")
+        self.assertEqual(resolve.call_count, 1)
+
+    def test_concurrent_calls_do_not_resolve_twice(self):
+        def slow(*_args, **_kwargs):
+            time.sleep(0.05)
+            return {"url": "https://x/a.m3u8", "headers": {}}
+
+        with patch("tdtlocal.app.tdtspain.resolve", side_effect=slow) as resolve, ThreadPoolExecutor(4) as pool:
+            list(pool.map(lambda _: self.app.resolve_channel("x"), range(4)))
+        self.assertEqual(resolve.call_count, 1)
 
 
 if __name__ == "__main__":

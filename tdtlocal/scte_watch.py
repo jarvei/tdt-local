@@ -259,7 +259,9 @@ class ScteWatcher:
     def watch(self, channel: dict[str, Any], resolve: Any = None) -> dict[str, Any]:
         """Start following ``channel``. ``resolve`` is a callable returning ``{url, headers}`` on demand."""
         cid = channel["id"]
-        source = next((u for u in channel.get("sources") or [] if u), "")
+        sources = [u for u in channel.get("sources") or [] if u]
+        # The first source that is a stream or a recipe: a channel may have YouTube or an embed first.
+        source = next((u for u in sources if tdtspain.is_tdtspain(u) or (not is_youtube(u) and HLS_URL.search(u))), "")
         headers: dict[str, str] = {}
         resolver = None
         mediaset = False
@@ -363,6 +365,9 @@ class ScteWatcher:
         with self._lock:
             duplicate = self._seen.get(entry["key"], 0.0) > now - 5
             self._seen[entry["key"]] = now
+            if len(self._seen) > MAX_REMEMBERED:
+                horizon = now - DEFAULT_TTL
+                self._seen = {k: t for k, t in self._seen.items() if t > horizon}
         if not duplicate:
             self.log.add(entry)
             log.info("marca de anuncios en %s: %s %s", channel["name"], kind, detail)

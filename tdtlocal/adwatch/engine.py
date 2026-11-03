@@ -11,10 +11,10 @@ The engine only *decides*; ``scte_watch`` publishes the changes and the page mut
 
 from __future__ import annotations
 
-import calendar
 import threading
 import time
 import urllib.parse
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from . import dash, hls, id3, scte35
@@ -24,6 +24,8 @@ MEDIASET_LAG_S = 0.0  # the DAI session already delivers the time left
 MARGIN_S = 18.0  # the splice duration usually falls short: the CUE-IN is the good close
 MEDIASET_MARGIN_S = 5.0
 MAX_BREAK_S = 900.0
+MAX_SEEN = 2000  # markers remembered to avoid reporting them again; the oldest are dropped
+RETRY_MAX_S = 60.0  # backoff cap when the playlist or the session cannot be read
 INTERVAL_S = 2.0
 MEDIASET_INTERVAL_S = 1.0
 SESSION_S = 240.0  # Mediaset's DAI manifest token lives ~5 min: renew it before it expires
@@ -43,12 +45,14 @@ def _iso(ts: float | None = None) -> str:
 def _epoch(iso: str | None) -> float | None:
     if not iso:
         return None
-    text = str(iso).strip().replace("Z", "")
-    text = text.split("+")[0].split(".")[0]
+    text = str(iso).strip().replace("Z", "+00:00")
     try:
-        return float(calendar.timegm(time.strptime(text, "%Y-%m-%dT%H:%M:%S")))
+        parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
+    if parsed.tzinfo is None:  # no zone: the markers are UTC
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
 
 
 def _number(value: object) -> float | None:
@@ -266,11 +270,14 @@ class Vigilance:
         self.since: str | None = None
         self.left: int | None = None
         self.events: list[Event] = []
-        self.seen: set[tuple] = set()
+        self.seen: dict[tuple, float] = {}  # marker key -> when it was first seen
         self.errors = 0
         self.last_error = ""
         self.last_read: str | None = None
         self.started_at = _iso()
+        self._lock = threading.Lock()  # state and events are read from the server thread
+        self._fail_count = 0
+        self._next_try = 0.0
         self._thread = threading.Thread(target=self._loop, name=f"ads-{channel_id}", daemon=True)
 
     # ---- life cycle
@@ -287,13 +294,25 @@ class Vigilance:
     # ---- sampling
     def _loop(self) -> None:
         while not self._closed.is_set() and not self.stop.is_set():
-            try:
-                self._step()
-                self.errors = 0
-            except Exception as exc:
-                self.errors += 1
-                self.last_error = f"{type(exc).__name__}: {exc}"
-            self._closed.wait(self.interval)
+            wait = self.interval
+            if self._next_try > time.time():
+                wait = min(self._next_try - time.time(), self.interval)
+            else:
+                try:
+                    self._step()
+                    self.errors = 0
+                    self._fail_count = 0
+                    self._next_try = 0.0
+                except Exception as exc:
+                    self.errors += 1
+                    self._fail_count += 1
+                    # 5, 10, 20, 40, 60 s: a fallen origin is not hammered every two seconds
+                    self._next_try = time.time() + min(RETRY_MAX_S, 5.0 * (2 ** min(self._fail_count - 1, 4)))
+                    self.last_error = f"{type(exc).__name__}: {exc}"
+                    if self.resolver:  # a token may have expired: renew before the next try
+                        self.resolved_at = 0.0
+                        self.variant = None
+            self._closed.wait(wait)
 
     def _renew(self) -> None:
         if self.resolver is None:
@@ -335,14 +354,9 @@ class Vigilance:
                 self.last_error = f"DASH {type(exc).__name__}: {exc}"
 
     def _process(self, text: str, manifest: dict[str, Any]) -> None:
-        fresh = [event for event in normalize(manifest, self.margin, self.mediaset) if event["key"] not in self.seen]
-        for event in fresh:
-            self.seen.add(event["key"])
-            event["seen"] = time.time()
-            self.events.append(event)
-        if len(self.events) > 500:
-            del self.events[: len(self.events) - 500]
-        if not fresh and self.mediaset and not manifest.get("events"):
+        normalized = normalize(manifest, self.margin, self.mediaset)
+        self._remember(normalized)
+        if not normalized and self.mediaset:
             # A DAI session can start in the middle of a break: the pod segments are the only sign left.
             segment = last_segment(text)
             if "dai.google.com" in segment or "/linear/pods/" in segment:
@@ -352,9 +366,36 @@ class Vigilance:
                 return
         self._update()
 
+    def _remember(self, events: list[Event]) -> None:
+        """Append the markers not seen yet, under the lock, and keep both collections bounded."""
+        now = time.time()
+        with self._lock:
+            for event in events:
+                if event["key"] in self.seen:
+                    continue
+                self.seen[event["key"]] = now
+                event["seen"] = now
+                self.events.append(event)
+            if len(self.events) > 500:
+                del self.events[: len(self.events) - 500]
+            self._trim_seen()
+
+    def _trim_seen(self) -> None:
+        """Drop the oldest keys when there are too many; the ones still in ``events`` are kept."""
+        if len(self.seen) <= MAX_SEEN:
+            return
+        keep = {event["key"] for event in self.events}
+        excess = len(self.seen) - MAX_SEEN
+        for key, _ in sorted(self.seen.items(), key=lambda item: item[1]):
+            if excess <= 0:
+                break
+            if key not in keep:
+                del self.seen[key]
+                excess -= 1
+
     def _process_dash(self, text: str) -> None:
         manifest = dash.summarize(text, self.dash_url or "")
-        fresh = False
+        events: list[Event] = []
         for raw in manifest.get("events", []):
             seg_type = raw.get("segmentation_type")
             if seg_type == 0x22:
@@ -372,8 +413,7 @@ class Vigilance:
             key = ("dash", raw.get("id"), raw.get("presentation_time"), raw.get("command"), seg_type)
             if key in self.seen:
                 continue
-            self.seen.add(key)
-            self.events.append(
+            events.append(
                 {
                     "class": css_class,
                     "type": "dash",
@@ -385,54 +425,62 @@ class Vigilance:
                     "detail": raw.get("segmentation_name") or raw.get("command") or "SCTE-35",
                     "raw": str(raw.get("raw") or "")[:200],
                     "key": key,
-                    "seen": time.time(),
                     "mediaset": self.mediaset,
                 }
             )
-            fresh = True
-        if fresh:
+        if events:
+            self._remember(events)
             self._update()
 
     def _update(self) -> None:
         now = time.time()
-        if self.state == "publicidad" and self.since:
-            started = _epoch(self.since) or now
+        with self._lock:
+            state, since = self.state, self.since
+            events = list(self.events)
+        if state == "publicidad" and since:
+            started = _epoch(since) or now
             if now - started > MAX_BREAK_S:
                 self._change("programa", _iso(now), None, None)
                 return
         # The playlist runs `lag` seconds ahead of the picture: the state that matters is the one the
         # live edge had `lag` seconds ago, which is what the viewer is seeing now.
-        state, since, left = state_of(self.events, now - self.lag, self.mediaset)
-        if state != self.state or (state == "publicidad" and left != self.left):
-            self._change(state, since, left, None)
+        new_state, new_since, left = state_of(events, now - self.lag, self.mediaset)
+        with self._lock:
+            changed = new_state != self.state or (new_state == "publicidad" and left != self.left)
+        if changed:
+            self._change(new_state, new_since, left, None)
 
     def _change(self, state: str, since: str | None, left: int | None, event: Event | None) -> None:
-        previous, self.state, self.since, self.left = self.state, state, since, left
+        with self._lock:
+            previous = self.state
+            self.state, self.since, self.left = state, since, left
         if self.on_change and state != previous:
             self.on_change(state, since, left, event, previous)
 
     # ---- views
     def snapshot(self) -> dict[str, Any]:
-        return {
-            "channel": self.channel_id,
-            "name": self.name,
-            "state": self.state,
-            "alive": self.alive,
-            "stopped": self._closed.is_set() or self.stop.is_set(),
-            "since": self.since,
-            "left": self.left,
-            "lag": self.lag,
-            "url": self.url,
-            "variant": self.variant,
-            "dash": self.dash_url,
-            "started": self.started_at,
-            "read": self.last_read,
-            "errors": self.errors,
-            "error": self.last_error,
-            "events": [
+        with self._lock:
+            events = [
                 {k: v for k, v in event.items() if k not in ("key", "seen", "mediaset")} for event in self.events[-10:]
-            ],
-        }
+            ]
+            return {
+                "channel": self.channel_id,
+                "name": self.name,
+                "state": self.state,
+                "alive": self.alive,
+                "stopped": self._closed.is_set() or self.stop.is_set(),
+                "since": self.since,
+                "left": self.left,
+                "lag": self.lag,
+                "url": self.url,
+                "variant": self.variant,
+                "dash": self.dash_url,
+                "started": self.started_at,
+                "read": self.last_read,
+                "errors": self.errors,
+                "error": self.last_error,
+                "events": events,
+            }
 
 
 def _best_variant(manifest: dict[str, Any], url: str) -> str:

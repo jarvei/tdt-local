@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from typing import Any
 
 from . import __version__, ads, tdtspain, u7d
@@ -19,6 +20,8 @@ from .store import Store, channel_ok, source_ok
 from .stt import Transcriber
 from .u7d import U7d
 from .whisper_models import ModelDownloader
+
+RESOLVE_TTL = 120.0  # a resolved URL is reused for this long: the DAI/Atresplayer tokens last minutes
 
 
 class App:
@@ -40,6 +43,11 @@ class App:
         self.transcriber = Transcriber(config)
         self.models = ModelDownloader(config, self.net)
         self.logos = LogoCache(self.store, self.net, config.data_dir / "logos")
+        # Resolved URLs (a play and the ad watcher may ask for the same channel at once) and one lock
+        # per channel so only the first one resolves; the rest take the cached result.
+        self._resolved: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._resolve_locks: dict[str, threading.Lock] = {}
+        self._resolve_guard = threading.Lock()
 
     def start_background(self) -> None:
         """Load the cache and start the refresh threads."""
@@ -51,6 +59,8 @@ class App:
         threading.Thread(target=self.scte.run, args=(self.stop,), daemon=True, name="scte").start()
 
     def _after_sync(self) -> None:
+        with self._resolve_guard:  # the catalogue may have changed: old resolved URLs no longer apply
+            self._resolved.clear()
         if self.config.auto_check:  # read now, not at start-up: it can be changed in the settings
             self.health.start()
 
@@ -103,14 +113,26 @@ class App:
 
     def resolve_channel(self, cid: str) -> dict[str, Any]:
         """The live URL of a channel whose recipe is followed at play time (TDT Spain's list)."""
-        channel = self.channel_by_id(cid)
-        if channel is None:
-            raise ValueError("canal desconocido")
-        out = tdtspain.resolve(channel, self.net)
-        self.net.allow(out["url"])
-        with self.store.lock:
-            self.store.extra_headers[cid] = dict(out.get("headers") or {})
-        return out
+        with self._resolve_guard:
+            cached = self._resolved.get(cid)
+            lock = self._resolve_locks.setdefault(cid, threading.Lock())
+        if cached and time.time() - cached[0] < RESOLVE_TTL:
+            return dict(cached[1])
+        with lock:
+            with self._resolve_guard:  # another request may have resolved it while we waited
+                cached = self._resolved.get(cid)
+            if cached and time.time() - cached[0] < RESOLVE_TTL:
+                return dict(cached[1])
+            channel = self.channel_by_id(cid)
+            if channel is None:
+                raise ValueError("canal desconocido")
+            out = tdtspain.resolve(channel, self.net)
+            self.net.allow(out["url"])
+            with self.store.lock:
+                self.store.extra_headers[cid] = dict(out.get("headers") or {})
+            with self._resolve_guard:
+                self._resolved[cid] = (time.time(), dict(out))
+            return out
 
     def channels_payload(self) -> dict[str, Any]:
         """The JSON behind ``/api/channels``: every channel with its health, plus list metadata."""

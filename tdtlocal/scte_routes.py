@@ -116,6 +116,9 @@ def handle_post(handler: Handler, path: str) -> bool:
             except ValueError as exc:
                 handler._json(404, {"ok": False, "error": str(exc)})
                 return True
+            except Exception as exc:  # the resolver hit the network: the page must get an answer
+                handler._json(502, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+                return True
             handler._json(200 if out.get("ok") else 409, out)
         else:
             handler._json(200, {"ok": True, "stopped": watcher.unwatch(cid)})

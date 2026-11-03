@@ -87,6 +87,21 @@ seg.ts
         self.assertEqual(id3.admode(base64.b64encode(payload).decode()), None)
         self.assertIsNone(id3.admode(None))
 
+    def test_epoch_honours_the_zone(self):
+        self.assertEqual(engine._epoch("2026-11-03T10:00:00+02:00"), engine._epoch("2026-11-03T08:00:00Z"))
+        self.assertEqual(engine._epoch("2026-11-03T08:00:00Z"), 1793692800.0)
+        self.assertEqual(engine._epoch("2026-11-03T08:00:00.400Z"), 1793692800.4)
+        self.assertIsNone(engine._epoch("no es una fecha"))
+
+    def test_seen_is_trimmed(self):
+        import threading
+
+        v = object.__new__(engine.Vigilance)
+        v.seen, v.events, v._lock = {}, [], threading.Lock()
+        v._remember([{"key": ("k", i)} for i in range(engine.MAX_SEEN + 1000)])
+        self.assertLessEqual(len(v.seen), engine.MAX_SEEN)
+        self.assertLessEqual(len(v.events), 500)
+
     def test_a_time_signal_is_classified_by_its_segmentation_type(self):
         def command(segment_type: int) -> dict:
             raw = b"CUEI" + (12345).to_bytes(4, "big") + b"\x00\x00" + bytes([segment_type]) + b"\x00\x00"
