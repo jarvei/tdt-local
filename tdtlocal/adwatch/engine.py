@@ -1,4 +1,4 @@
-"""Live ad-break watcher: follows the media playlist of one channel and keeps its break state.
+"""Live ad-break watcher: follows one channel's master playlist and its first variant, and keeps its break state.
 
 The rules are the ones measured in ``~/Proyectos/tdt-datos`` (which tags count as a break, the
 ``admode`` fallback, the DASH ``EventStream``) and the timing is the one the TDT Spain app's
@@ -343,8 +343,8 @@ class Vigilance:
         if self.variant is None:
             text = self._read(self.url)
             manifest = hls.summarize(text, self.url)
-            best = _best_variant(manifest, self.url)
-            self.variant = urllib.parse.urljoin(self.url, best)
+            first = _first_variant(manifest, self.url)
+            self.variant = urllib.parse.urljoin(self.url, first)
             if self.variant == self.url:
                 self._process(text, manifest)
             else:
@@ -488,13 +488,15 @@ class Vigilance:
             }
 
 
-def _best_variant(manifest: dict[str, Any], url: str) -> str:
-    """The highest-bitrate video variant of a master playlist; a media playlist is itself."""
+def _first_variant(manifest: dict[str, Any], url: str) -> str:
+    """The first variant of a master playlist, like ``AdMute.firstVariant``; a media playlist is itself.
+
+    Atresmedia publishes the ad markers in the first (lowest) variant: the higher ones are clean, so picking
+    the best-quality variant left every break unseen even though the tag was right there.
+    """
     if manifest.get("type") == "media":
         return url
     variants = manifest.get("variants") or []
     if not variants:
         return url
-    with_video = [v for v in variants if v.get("resolution")]
-    best = max(with_video or variants, key=lambda v: v.get("bandwidth") or 0)
-    return best.get("uri") or url
+    return variants[0].get("uri") or url

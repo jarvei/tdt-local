@@ -58,8 +58,9 @@ Hay dos caminos y el in-band manda cuando existe:
    `pts - currentTime` y `adbreak.js` aplica el cambio al llegar. Si el reproductor se pausa o se
    desvía, al disparar se vuelve a medir la distancia en vez de silenciar antes. `Break End 0x23` y
    `splice_insert` con `out_of_network=0` cierran en su muestra exacta.
-2. **Playlist (respaldo y Mediaset).** `adwatch.engine.Vigilance` sondea la variante cada 2 s (1 s
-   en Mediaset), decodifica los tags y publica `cue-out`/`cue-in` ya sincronizados con la imagen:
+2. **Playlist (respaldo y Mediaset).** `adwatch.engine.Vigilance` sondea el master y su **primera**
+   variante cada 2 s (1 s en Mediaset), como `firstVariant` de AdMute —las marcas de Atresmedia van
+   ahí, no en las de más calidad—, decodifica los tags y publica `cue-out`/`cue-in` ya sincronizados con la imagen:
    `now - lag`, con `LAG_S = 18` en Atresmedia y 0 en Mediaset. La duración declarada es la red de
    seguridad (margen 18 s / 5 s); el `CUE-IN` es el cierre bueno y también espera al lag. Mediaset
    añade el `admode` de su DAI y la regla de `earlyMediasetIn`.

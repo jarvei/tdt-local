@@ -266,8 +266,9 @@ abre el registro.
 
 Dónde mira:
 
-- **El canal que estás viendo:** al sintonizar, el servidor empieza a seguir su lista de reproducción de medios (la
-  variante de más calidad, no el maestro) cada 2 s, o cada 1 s en Mediaset. Recorre los tags en orden y se queda con el
+- **El canal que estás viendo:** al sintonizar, el servidor empieza a seguir el maestro y su **primera variante**
+  (como `firstVariant` de AdMute: en Atresmedia las marcas van ahí, no en las de más calidad) cada 2 s, o cada 1 s
+  en Mediaset. Recorre los tags en orden y se queda con el
   estado: `#EXT-X-DATERANGE` con `SCTE35-OUT`/`SCTE35-IN` (que se **decodifican**: `splice_insert`, `time_signal` y
   sus descriptores de segmentación), `#EXT-X-CUE-OUT`/`CUE-OUT-CONT`/`CUE-IN`, los anuncios intercalados de HLS
   (`X-ASSET-URI`), el ID3 `admode` que Mediaset deja en `X-MESSAGE-DATA` y el `EventStream` SCTE-35 del MPD.

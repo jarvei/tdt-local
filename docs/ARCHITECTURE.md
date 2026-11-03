@@ -41,7 +41,7 @@ navegador ──HTTP──▶ server.Handler ──▶ App ─┬─ Store      
 | `stt.py` | `Transcriber`, `Whisper` (cliente/lanzador), `PcmStream` y `Tap` |
 | `scte.py` | marcas de anuncios SCTE-35, funciones puras: decodificador de `splice_info_section`, etiquetas HLS, PID en MPEG-TS, `emsg` |
 | `scte_watch.py` | `ScteLog` (registro en `scte.jsonl`), `ScteWatcher` (sigue el canal sintonizado y explora canales) y la publicación de cada cambio de estado |
-| `adwatch/` | motor de publicidad portado de `tdt-datos`: `hls`/`dash`/`scte35`/`id3` y `engine.Vigilance`, que sigue una variante y mantiene el estado con el lag del directo |
+| `adwatch/` | motor de publicidad portado de `tdt-datos`: `hls`/`dash`/`scte35`/`id3` y `engine.Vigilance`, que sigue el master y su primera variante, y mantiene el estado con el lag del directo |
 | `scte_routes.py` | rutas `/api/scte*`: leer, exportar JSON/CSV, explorar ahora y vaciar |
 | `ads.py` | qué recibe la página para reaccionar a una pausa (`meta.ads`), el origen de la web que se muestra (`frame-src`) y si una web se deja incrustar |
 | `logos.py` | caché de logos con detección de tipo por firma |

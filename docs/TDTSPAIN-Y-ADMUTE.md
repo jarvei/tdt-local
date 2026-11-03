@@ -65,8 +65,9 @@ en Mediaset, RTVE, U7D y los reproductores incrustados.
 
 ### 2. Playlist (respaldo y Mediaset)
 
-- Sondeo de la playlist de la **variante** (no el master), cada 2 s; Mediaset cada 1 s sobre la
-  playlist DAI.
+- Sondeo del **master** y de su **primera variante**, como `firstVariant` de AdMute: las marcas de
+  Atresmedia van en la primera (640×360) y no en las de más calidad. Cada 2 s; Mediaset cada 1 s
+  sobre la playlist DAI.
 - El estado se decide **recorriendo los tags en orden** y quedándose con el último:
   `SCTE35-OUT`/`CUE-OUT`/`CUE-OUT-CONT` → publicidad; `SCTE35-IN`/`CUE-IN`/`admode=in` → programa.
 - Un corte cerrado recuerda el `ID` de su `DATERANGE`: si el tag se queda atrás, no vuelve a silenciar.

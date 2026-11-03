@@ -102,6 +102,17 @@ seg.ts
         self.assertLessEqual(len(v.seen), engine.MAX_SEEN)
         self.assertLessEqual(len(v.events), 500)
 
+    def test_the_watcher_follows_the_first_variant_like_admute(self):
+        text = """#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=622000,RESOLUTION=640x360
+low.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=7146000,RESOLUTION=1920x1080
+high.m3u8
+"""
+        manifest = hls.summarize(text, "https://x/playlist.m3u8")
+        self.assertEqual(engine._first_variant(manifest, "https://x/playlist.m3u8"), "https://x/low.m3u8")
+        self.assertEqual(engine._first_variant({"type": "media"}, "https://x/media.m3u8"), "https://x/media.m3u8")
+
     def test_a_time_signal_is_classified_by_its_segmentation_type(self):
         def command(segment_type: int) -> dict:
             raw = b"CUEI" + (12345).to_bytes(4, "big") + b"\x00\x00" + bytes([segment_type]) + b"\x00\x00"

@@ -207,7 +207,7 @@ class ResolveTests(unittest.TestCase):
         self.assertEqual(out["url"], "https://directos/x/dai.m3u8")
         self.assertEqual(out["headers"]["Referer"], "https://www.mediasetinfinity.es/directo/cuatro/")
         self.assertIn("/ssai/event/KEY/streams", fetch.call_args_list[2][0][1])
-        self.assertEqual(fetch.call_args_list[2][0][1], "https://pubads.g.doubleclick.net/ssai/event/KEY/streams")
+        self.assertEqual(fetch.call_args_list[2][0][1], "https://dai.google.com/ssai/event/KEY/streams")
 
     def test_atresplayer_hls_is_read_from_the_player_api(self):
         data = json.dumps(

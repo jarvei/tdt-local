@@ -61,7 +61,8 @@ MEDIASET = {
 
 MEDIASET_LOGIN = "https://services-ott-prod-fe.mediaset.net/esp/idm/v3.0/anonymous/login"
 MEDIASET_CHECK = "https://services-ott-prod-fe.mediaset.net/esp/playback/v3.0/check"
-MEDIASET_DAI = "https://pubads.g.doubleclick.net/ssai/event/{}/streams"
+# Google DAI. Same service as pubads.g.doubleclick.net, whose name ad-blocking DNS sinks to 0.0.0.0.
+MEDIASET_DAI = "https://dai.google.com/ssai/event/{}/streams"
 MEDIASET_APP = "web//mediasetplay-web/1.5.5-46652b4"
 MEDIASET_HEADERS = {"Origin": "https://www.mediasetinfinity.es", "Referer": "https://www.mediasetinfinity.es/"}
 MEDIASET_PAGE = "https://www.mediasetinfinity.es/"

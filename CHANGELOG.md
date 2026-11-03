@@ -35,6 +35,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); e
   cambie.
 
 ### Correcciones
+- **Mediaset por `dai.google.com`**: el nombre antiguo del DAI (`pubads.g.doubleclick.net`) lo bloquean las DNS de
+  filtrado de anuncios (resuelve a `0.0.0.0`), así que Telecinco, FDF, Energy, Cuatro y el resto daban «sin señal».
+- **El vigilante lee la primera variante del master**, como `firstVariant` de AdMute: en Atresmedia las marcas van en
+  la variante de 640×360 y no en las de más calidad, así que seguir la de 6 Mbps dejaba los cortes sin detectar.
 - **La resolución de un canal con receta se cachea 120 s** (con un cerrojo por canal): la reproducción y el
   vigilante de publicidad comparten la misma URL en vez de hacer dos logins/DAI por sintonía. En Mediaset, la segunda
   petición pasa de ~1,4 s a ~1 ms.
