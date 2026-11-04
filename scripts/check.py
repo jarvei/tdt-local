@@ -18,12 +18,20 @@ def has_module(name: str) -> bool:
     return subprocess.run([sys.executable, "-c", f"import {name}"], capture_output=True, check=False).returncode == 0
 
 
+def ruff_command() -> list[str] | None:
+    """The installed ruff, whether it is a binary (pipx) or a module of this interpreter."""
+    binary = shutil.which("ruff")
+    if binary:
+        return [binary]
+    return [sys.executable, "-m", "ruff"] if has_module("ruff") else None
+
+
 def steps() -> list[tuple[str, list[str] | None, str]]:
     """``(title, command, reason it is skipped)``; ``command`` is ``None`` when it cannot run."""
-    ruff = [sys.executable, "-m", "ruff"] if has_module("ruff") else None
+    ruff = ruff_command()
     node = shutil.which("node")
     return [
-        ("ruff check", ruff and [*ruff, "check", "."], "ruff no está instalado (pip install ruff)"),
+        ("ruff check", ruff and [*ruff, "check", "."], "ruff no está instalado (pipx install ruff o pip install ruff)"),
         ("ruff format --check", ruff and [*ruff, "format", "--check", "."], "ruff no está instalado"),
         ("pruebas de Python", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."], ""),
         (
