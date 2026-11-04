@@ -33,8 +33,21 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); e
   (`apply_now`). El `CUE-IN` ahora espera al lag de la imagen en vez de devolver el sonido en cuanto aparece.
 - **`POST /api/scte/watch`**: la página avisa al servidor del canal que tiene puesto y el servidor lo sigue hasta que
   cambie.
+- **La guía extra se guarda en disco**: se reutiliza al arrancar y solo se vuelve a descargar si cambió (ETag), si cambian
+  los canales que la necesitan o si se cambia su origen; antes eran unos 6 MB en cada inicio.
 
 ### Correcciones
+- **Los canales de YouTube resuelven el directo actual**: el catálogo usa `@handle/live` y `/channel/UC…/live` en varios
+  canales (Sky News, GB News, France 24…), pero también ids fijos `/live/<id>` que envejecen (ABC News, América TV). La
+  casilla ya no usa `live_stream?channel=`, que YouTube deja en «Vídeo no disponible»: el servidor lee la página del
+  canal y, si el enlace es un id fijo, la del vídeo para llegar a su canal; saca el id del directo actual y la casilla
+  incrusta `/embed/<id>`. ABC News vuelve a verse; América TV sigue sin poder incrustarse porque YouTube no permite su
+  emisión en un iframe desde aquí, y su web oficial tampoco la sirve desde España. Antes, esos enlaces ni se reconocían
+  y daban «Sin señal».
+- **La guía de Atresmedia vuelve a funcionar**: el catálogo da a sus 17 canales identificadores que la guía de TDTChannels
+  ya no publica (`Antena3.TV`…); se traducen a los de la guía extra (`Antena 3 HD`, `La Sexta HD`, `Neox`…) y esa guía
+  se lee también para los canales del catálogo, no solo para los propios. Viene activada por defecto y se descarga
+  comprimida (unos 6 MB en vez de 35).
 - **Se retira el lector in-band**: no era el algoritmo de `AdMute` y no se dispara con la variante que elige hls.js
   (la de más calidad va sin marcas). Las marcas se leen de la primera variante del master.
 - **Mediaset por `dai.google.com`**: el nombre antiguo del DAI (`pubads.g.doubleclick.net`) lo bloquean las DNS de

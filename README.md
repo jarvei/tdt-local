@@ -123,9 +123,13 @@ pip install ruff pytest && ruff check . && ruff format --check .
   10–60 s.
 - **Guía de programación (EPG):** descarga cada hora los XMLTV de TDTChannels y los casa con la columna «EPG ID».
   Muestra el programa en emisión y el siguiente; `G` abre la programación completa del canal activo. Cubre unos 223
-  canales de tele y unas 50 emisoras; `--no-epg` la desactiva.
+  canales de tele y unas 50 emisoras, y la guía extra (activada por defecto) añade los 17 de Atresmedia y se guarda en
+  `data/` para no descargarla en cada arranque; `--no-epg` la desactiva.
 - **YouTube:** los canales cuyo directo es una página de YouTube se reproducen con el reproductor oficial incrustado,
-  también en el mosaico. No pasan por el proxy.
+  también en el mosaico. El servidor lee la página del canal y resuelve el id del vídeo que está en directo; si el
+  catálogo da un id fijo `/live/<id>`, lee la página de ese vídeo para llegar a su canal y usa el directo actual. La
+  casilla incrusta `/embed/<id>` y no pasa por el proxy. Algunos directos (América TV) no permiten la inserción y YouTube
+  muestra su aviso; el visor no lo puede saltar.
 - **U7D** (botón junto a Televisión y Radio): los canales con «últimos 7 días» (hoy, los de RTVE). Al entrar en uno
   salen sus programas de la última semana, del más reciente al más antiguo, con su miniatura y un buscador; un programa
   se reproduce como un canal. RTVE publica la lista y cada grabación por su API pública; los programas con DRM no se
@@ -174,8 +178,8 @@ de la carpeta de datos, y se aplica al momento, sin reiniciar.
   para **descargar modelos** de Whisper con progreso, cancelación y verificación SHA-256, y un botón «Comprobar» que
   dice qué falta (ffmpeg, el programa, el modelo, el servidor).
 - **Listas y guía:** cada cuántas horas se actualizan, comprobar los streams tras actualizar, guía de programación, la
-  **guía extra** para los canales sin guía en las listas (desactivada por defecto; hace falta para la guía de
-  Atresmedia y para canales propios) y, en «avanzado», las direcciones de origen (catálogo, guías y guía extra).
+  **guía extra** para los canales sin guía en las listas (activada por defecto; cubre Atresmedia y los canales propios)
+  y, en «avanzado», las direcciones de origen (catálogo, guías y guía extra).
 - **Marcas de anuncios:** activar la vigilancia, qué vigilar (lo que ves, una lista de canales o todos), cada cuántos
   segundos explorar, mirar también dentro del vídeo, avisar en pantalla y cuántas marcas conservar.
 - **Durante la publicidad:** qué hacer con el sonido y con la imagen cuando empieza una pausa, y qué pasa si tocas algo.
@@ -235,8 +239,8 @@ Si no hay un `whisper-server` en marcha, el visor lanza uno y lo apaga tras unos
 
 La lista de la tele es la de la aplicación [TDT Spain](https://www.tdtspain.com/) (`canalesv4.json`, 248 canales
 visibles). Trae Antena 3, laSexta, Neox, Nova, Mega, Atreseries, todos los canales de Mediaset, los temáticos de
-Atresplayer y las autonómicas y locales de cada comunidad, con su grupo, su logo y su `epgid` (el mismo que usa la
-guía).
+Atresplayer y las autonómicas y locales de cada comunidad, con su grupo, su logo y su `epgid` (el de la guía; en
+Atresmedia, `epg.py` lo traduce al de la guía extra).
 
 Cada canal se reproduce como la app resuelve su directo:
 
@@ -396,7 +400,7 @@ tdtlocal/static/vendor/  hls.js (Apache-2.0, con su licencia)
 packaging/           PyInstaller, Inno Setup, .dmg, .deb y el script de construcción de instaladores
 tests/               pruebas de Python (tests/*.py) y del navegador (tests/js/)
 docs/                documentación técnica
-data/                (se crea solo, no se versiona) catálogo, estado, logos y canales propios
+data/                (se crea solo, no se versiona) catálogo, guía extra, estado, logos y canales propios
 models/              (no se versiona) modelo de Whisper
 ```
 
@@ -412,7 +416,7 @@ models/              (no se versiona) modelo de Whisper
   (`canalesv4.json`): se descarga al arrancar y no se redistribuye. Sus directos son los que publican las cadenas.
 - **La guía extra** de los canales de Atresmedia viene de [EPG_dobleM](https://github.com/davidmuma/EPG_dobleM) y
   [picons_dobleM](https://github.com/davidmuma/picons_dobleM), de David Muma: archivos de terceros que se descargan
-  solo si activas esa guía.
+  mientras esa guía esté activada (lo está por defecto; se puede apagar en Ajustes).
 - [hls.js](https://github.com/video-dev/hls.js) (Apache-2.0, © Dailymotion) reproduce el HLS en el navegador.
 - Opcionales y no incluidos: [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT),
   [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT) y [FFmpeg](https://ffmpeg.org) (LGPL/GPL).

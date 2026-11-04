@@ -46,6 +46,7 @@ navegador ──HTTP──▶ server.Handler ──▶ App ─┬─ Store      
 | `ads.py` | qué recibe la página para reaccionar a una pausa (`meta.ads`), el origen de la web que se muestra (`frame-src`) y si una web se deja incrustar |
 | `logos.py` | caché de logos con detección de tipo por firma |
 | `util.py` | normalización de texto |
+| `youtube.py` | resuelve el id del vídeo que un canal tiene en directo desde su página o desde un `/live/<id>` fijo, y valida la URL |
 
 Reglas de diseño:
 
@@ -85,9 +86,12 @@ clásico que define `Hls` antes.
 - `guide.js`, `assistant.js`, `dialogs.js` — la guía, el asistente y los diálogos.
 - `scte.js` — el diálogo **Marcas** y el sondeo que avisa en pantalla de las marcas de anuncios nuevas (cada 2 s si hay
   una reacción configurada, cada 10 s si no).
-- La guía extra (`epg.py`: `sync_extra`, `extra_ids`): los canales propios con `epg` que ninguna guía de las listas cubre se leen
-  de un XMLTV comunitario (`epg_extra_source`, unos 35 MB), con `iterparse` y quedándose solo con esos canales, para no
-  cargar el archivo entero en memoria; sin entidades XML. Se guarda en `store.epg["extra"]` y `payload` la sirve como a las demás.
+- La guía extra (`epg.py`: `sync_extra`, `extra_ids`): los canales del catálogo y los propios cuyo `epg` no cubre ninguna
+  guía de las listas se leen de un XMLTV comunitario (`epg_extra_source`, unos 6 MB comprimidos), con `iterparse` y
+  quedándose solo con esos canales, para no cargar el archivo entero en memoria; sin entidades XML. Los identificadores de
+  Atresmedia del catálogo se traducen a los de esa guía (`Antena3.TV` → `Antena 3 HD`); se guarda en `store.epg["extra"]` y
+  `data/epg_extra.json` (con su ETag y su origen), `payload` la sirve bajo el id del canal y al arrancar se reutiliza en vez
+  de descargarla otra vez.
 - `lib/embeds.js` — reconoce el reproductor oficial incrustable de Atresplayer (`/embed/live/<canal>/` y
   `/embed/video/<id>/`), que `tile.js` muestra en un `<iframe>` como el de YouTube. Se usa para las grabaciones de U7D y
   para un canal de Atresmedia sin id en la API; los 17 del catálogo van por su HLS. Mediaset no se incrusta: su
@@ -126,6 +130,7 @@ coincide con `FIELDS`.
 | `tv.json`, `radio.json` | última lista descargada y sus metadatos (ETag, fechas, error) |
 | `status.json` | resultado de la última comprobación por URL |
 | `custom.json` | canales propios, con sus cabeceras |
+| `epg_extra.json` | guía extra ya parseada (canales, ETag, origen y fecha) para no descargarla en cada arranque |
 | `settings.json` | ajustes guardados (puede contener la clave de API: permisos 600 donde existen) |
 | `scte.jsonl` | registro de marcas de anuncios, una por línea (se compacta al pasar del límite) |
 | `logos/` | logos descargados (`.fail` = no reintentar durante 6 h) |

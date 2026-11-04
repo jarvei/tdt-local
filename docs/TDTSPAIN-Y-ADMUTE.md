@@ -24,7 +24,8 @@ Estado: implementado. Este documento fija el diseño y lo que ya está hecho, pa
   Dailymotion, `geturl`, `stream14`) no se resuelven al arrancar; se resuelven al sintonizar, como
   ya hace `u7d` (`/api/u7d/play`). Así no caducan en la lista.
 - Los canales que solo son un `.mpd` (5 de ETB) quedan como «solo web»: hls.js no reproduce DASH.
-- El `epgid` del catálogo es el mismo que el de TDTChannels: la EPG actual sigue valiendo.
+- El `epgid` del catálogo es el de TDTChannels, salvo en Atresmedia, que esa guía ya no publica: `epg.py` traduce sus
+  identificadores a los de la guía extra (`Antena3.TV` → `Antena 3 HD`…).
 - **Primera variante, no la de más calidad**: `AdMute` no busca las marcas en el stream que reproduce,
   sino en la lista. Lee el **master** y se queda con la **primera variante** que declara
   (`firstVariant()`): en Atresmedia es la de 405000, la que lleva `SCTE35-OUT`/`SCTE35-IN`; la de
@@ -39,7 +40,7 @@ Estado: implementado. Este documento fija el diseño y lo que ya está hecho, pa
 | Tipo | Canales | Cómo |
 |---|---|---|
 | directo | 160 | URL `m3u8` tal cual |
-| `youtube` | 15 | URL de YouTube (el visor la convierte a embed) |
+| `youtube` | 15 | URL de YouTube; el servidor resuelve el id actual del directo (canal o `/live/<id>` fijo) y la casilla incrusta `/embed/<id>` |
 | `stream11` | 17 | HLS de Atresplayer (`tdtspain.py`), con su SCTE-35 en la primera variante; sin iframe ni puente |
 | `stream1` RTVE | 11 | HLS fijo `rtvelivestream.rtve.es/rtvesec/...` (la1, la2, 24h, tdp, clan, can/*, cat/*) |
 | `stream10` Mediaset | 14 | login anónimo → `playback/check` → `dai.google.com` → `stream_manifest` (HLS en claro) |
