@@ -22,9 +22,9 @@ EPG_SOURCES = {
     "radio": "https://www.ondachannels.com/epg/RADIO.xml.gz",
 }
 
-# A community guide (XMLTV) with channels the TDTChannels one lacks, such as Atresmedia's. Only the channels the user
-# added that need it are read from it, and only if the user turns it on.
-EPG_EXTRA_SOURCE = "https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml"
+# A community guide (XMLTV.gz) with channels the TDTChannels one lacks, such as Atresmedia's. Only the channels that
+# need it are read from it. On by default: the catalogue has 17 Atresmedia channels and no other guide covers them.
+EPG_EXTRA_SOURCE = "https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_light.xml.gz"
 
 DEFAULT_PORT = 8788
 DEFAULT_LLM_URL = "http://127.0.0.1:8080/v1"
@@ -48,7 +48,7 @@ class Config:
     radio_source: str = RADIO_SOURCE
     epg_enabled: bool = True
     epg_sources: dict[str, str] = field(default_factory=lambda: dict(EPG_SOURCES))
-    epg_extra_enabled: bool = False  # also read the programme of own channels from epg_extra_source
+    epg_extra_enabled: bool = True  # also read the programme of the channels the lists lack (Atresmedia…) there
     epg_extra_source: str = EPG_EXTRA_SOURCE
 
     data_dir: Path = field(default_factory=lambda: default_data_dir(PROJECT_DIR))

@@ -7,7 +7,7 @@ import unittest
 import unittest.mock
 
 from tdtlocal.custom import build_custom_entry
-from tdtlocal.epg import parse_xmltv
+from tdtlocal.epg import extra_epg_id, parse_xmltv
 
 from .helpers import AppCase, ServerCase
 
@@ -59,6 +59,17 @@ class ParseTests(unittest.TestCase):
             parse_xmltv(b"<tv><programme channel='x'>", only={"x"})
 
 
+class ExtraIdTests(unittest.TestCase):
+    def test_atresmedia_ids_are_translated_to_the_extra_guide(self):
+        self.assertEqual(extra_epg_id("Antena3.TV"), "Antena 3 HD")
+        self.assertEqual(extra_epg_id("LaSexta.TV"), "La Sexta HD")
+        self.assertEqual(extra_epg_id("A3P_Multicine.TV"), "Multicine atresplayer")
+
+    def test_other_ids_are_left_alone(self):
+        self.assertEqual(extra_epg_id("La1.TV"), "La1.TV")
+        self.assertEqual(extra_epg_id("La Sexta HD"), "La Sexta HD")
+
+
 class CustomEntryTests(unittest.TestCase):
     def test_a_guide_id_is_kept_if_it_is_reasonable(self):
         self.assertEqual(build_custom_entry(SEXTA)["epg"], "La Sexta HD")
@@ -106,6 +117,48 @@ class ExtraGuideTests(AppCase):
         self.assertEqual([p[2] for p in now["La Sexta HD"]], ["laSexta Noticias", "Más Vale Tarde"])
         self.assertEqual(len(self.app.epg.payload("La Sexta HD")["programmes"]), 2)
 
+    def test_a_catalogue_channel_uses_the_extra_guide_under_its_own_id(self):
+        self.app.store.channels = [{"id": "lasexta-tv", "name": "laSexta", "epg": "LaSexta.TV"}]
+        self.assertEqual(self.app.epg.extra_ids(), {"La Sexta HD"})
+        self.assertTrue(self.app.epg.sync_extra()["changed"])
+        self.assertEqual(list(self.app.store.epg["extra"]), ["La Sexta HD"])
+        now = self.app.epg.payload()["now"]
+        self.assertEqual([p[2] for p in now["LaSexta.TV"]], ["laSexta Noticias", "Más Vale Tarde"])
+        detail = self.app.epg.payload("LaSexta.TV")
+        self.assertEqual([p[2] for p in detail["programmes"]], ["laSexta Noticias", "Más Vale Tarde"])
+
+    def test_a_catalogue_channel_a_list_guide_covers_does_not_need_it(self):
+        self.app.store.epg["tv"]["LaSexta.TV"] = [[1, 2, "x", "", ""]]
+        self.app.store.channels = [{"id": "lasexta-tv", "name": "laSexta", "epg": "LaSexta.TV"}]
+        self.assertEqual(self.app.epg.extra_ids(), set())
+
+    def test_the_guide_is_cached_and_reused_at_startup(self):
+        self.app.store.add_custom(SEXTA)
+        self.assertTrue(self.app.epg.sync_extra()["changed"])
+        self.assertTrue((self.app.config.data_dir / "epg_extra.json").exists())
+        restarted = self.make_app(epg_extra_source=self.origin.url("/extra.xml"))
+        restarted.store.load()
+        self.assertEqual(list(restarted.store.epg["extra"]), ["La Sexta HD"])
+        self.assertEqual(restarted.store.epg_extra_meta["wanted"], ["La Sexta HD"])
+        self.assertEqual(restarted.epg.extra_ids(), {"La Sexta HD"})
+        again = restarted.epg.sync_extra()
+        self.assertEqual((again["changed"], again["error"], self.hits), (False, None, 2))  # one download, one 304
+
+    def test_a_new_source_is_read_whole(self):
+        self.app.store.add_custom(SEXTA)
+        self.app.epg.sync_extra()
+        self.origin.routes["/extra2.xml"] = (200, {"ETag": '"v2"'}, XML.encode())
+        self.app.config.epg_extra_source = self.origin.url("/extra2.xml")
+        self.assertTrue(self.app.epg.sync_extra()["changed"])
+        self.assertNotIn("if-none-match", self.origin.requests[-1][1])
+
+    def test_a_corrupt_cache_is_ignored(self):
+        path = self.app.config.data_dir / "epg_extra.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{no json", encoding="utf-8")
+        self.app.store.load()
+        self.assertEqual(self.app.store.epg["extra"], {})
+
     def test_nothing_is_downloaded_when_no_channel_needs_it(self):
         result = self.app.epg.sync_extra()
         self.assertEqual((result["changed"], self.hits), (False, 0))
@@ -143,12 +196,12 @@ class ExtraGuideTests(AppCase):
 
 
 class ExtraGuideSettingsTests(ServerCase):
-    def test_it_is_off_by_default_and_can_be_turned_on(self):
-        self.assertFalse(self.app.config.epg_extra_enabled)
-        self.assertTrue(self.app.config.epg_extra_source.startswith("https://"))
-        status, data = self.post_json("/api/settings", {"epg_extra_enabled": True})
-        self.assertEqual((status, data["ok"]), (200, True))
+    def test_it_is_on_by_default_and_can_be_turned_off(self):
         self.assertTrue(self.app.config.epg_extra_enabled)
+        self.assertTrue(self.app.config.epg_extra_source.startswith("https://"))
+        status, data = self.post_json("/api/settings", {"epg_extra_enabled": False})
+        self.assertEqual((status, data["ok"]), (200, True))
+        self.assertFalse(self.app.config.epg_extra_enabled)
         self.assertEqual(self.post_json("/api/settings", {"epg_extra_source": "ftp://x"})[0], 400)
 
     def test_adding_a_channel_with_a_guide_id_keeps_it_and_merging_fills_it_in(self):

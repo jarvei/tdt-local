@@ -29,6 +29,29 @@ EXTRA_INTERVAL = 6 * 3600  # it is big: look at it a few times a day, and with i
 DESCRIPTION_LIMIT = 600
 XMLTV_TS = re.compile(r"(\d{14})(?:\s*(Z|[+-]\d{4}))?")
 
+# The catalogue's guide ids for Atresmedia's channels are not in the TDTChannels guide (it no longer lists them);
+# the community guide names the same channels with these ids.
+EXTRA_EPG_IDS = {
+    "Antena3.TV": "Antena 3 HD",
+    "LaSexta.TV": "La Sexta HD",
+    "Neox.TV": "Neox",
+    "Nova.TV": "Nova",
+    "Mega.TV": "Mega",
+    "Atreseries.TV": "Atreseries",
+    "Kidz.TV": "Kidz",
+    "Flooxer.TV": "Flooxer",
+    "A3P_Multicine.TV": "Multicine atresplayer",
+    "A3P_Clasicos.TV": "Clásicos atresplayer",
+    "A3P_Comedia.TV": "Comedia atresplayer",
+    "A3P_MentesInqui.TV": "Inquietos atresplayer",
+    "A3P_Hormiguero.TV": "El Hormiguero",
+    "A3P_ClubComedia.TV": "El club de la comedia",
+    "A3P_EqInvestigacion.TV": "Equipo de investigación",
+    "A3P_AquiNoHayQ.TV": "Aquí no hay quién viva",
+    "A3P_FisicaOQuimica.TV": "FoQ",
+}
+EXTRA_EPG_ALIASES = {extra: catalogue for catalogue, extra in EXTRA_EPG_IDS.items()}
+
 
 def xmltv_ts(value: str | None) -> int:
     """``"20261030065000 +0100"`` -> epoch seconds (UTC). Raises :class:`ValueError` if malformed."""
@@ -41,6 +64,11 @@ def xmltv_ts(value: str | None) -> int:
         sign = 1 if zone[0] == "+" else -1
         ts -= sign * (int(zone[1:3]) * 3600 + int(zone[3:5]) * 60)
     return ts
+
+
+def extra_epg_id(epg_id: str) -> str:
+    """The id the extra guide uses for a guide id of the catalogue (Atresmedia names its channels differently)."""
+    return EXTRA_EPG_IDS.get(epg_id, epg_id)
 
 
 def _programmes_of(data: bytes, only: set[str]):
@@ -101,7 +129,6 @@ class EpgSyncer:
         self._lock = threading.Lock()
         self._next_due = 0.0
         self._extra_due = 0.0
-        self._extra_wanted: frozenset[str] = frozenset()  # the channels the extra guide was last read for
 
     def _fetch(self, kind: str, force: bool) -> tuple[dict[str, list[Programme]], str | None] | None:
         """``(guide, etag)``, or ``None`` when the source did not change."""
@@ -154,24 +181,25 @@ class EpgSyncer:
             return {"changed": changed, "channels": channels, "error": errors or None}
 
     def extra_ids(self) -> set[str]:
-        """Guide ids of the own channels that the lists' guides do not have: what the extra guide is read for."""
+        """Guide ids the lists' guides lack, for catalogue and own channels: what the extra guide is read for."""
         with self.store.lock:
             known = set(self.store.epg["tv"]) | set(self.store.epg["radio"])
-            return {c["epg"] for c in self.store.custom if c.get("epg") and c["epg"] not in known}
+            channels = self.store.channels + self.store.custom
+            return {extra_epg_id(c["epg"]) for c in channels if c.get("epg") and c["epg"] not in known}
 
     def sync_extra(self, force: bool = False) -> dict[str, Any]:
-        """Read, from the extra guide, the programme of the own channels that have a guide id the lists lack."""
+        """Read, from the extra guide, the programme of the catalogue and own channels that the lists lack."""
         with self._lock:
             store = self.store
             wanted = self.extra_ids()
             if not wanted:
-                with store.lock:
-                    store.epg["extra"] = {}
-                return {"changed": False, "channels": 0, "error": None}
+                return {"changed": False, "channels": len(store.epg["extra"]), "error": None}
             headers = {}
-            etag = store.epg_meta["etag"].get("extra")
-            if etag and store.epg["extra"] and not force and frozenset(wanted) == self._extra_wanted:
-                headers["If-None-Match"] = etag
+            meta = store.epg_extra_meta
+            same_channels = frozenset(wanted) == frozenset(meta.get("wanted") or ())
+            same_source = meta.get("source") == self.config.epg_extra_source
+            if meta.get("etag") and store.epg["extra"] and not force and same_channels and same_source:
+                headers["If-None-Match"] = meta["etag"]
             try:
                 body, response_headers = self.net.fetch_trusted(
                     self.config.epg_extra_source, headers, timeout=60, limit=MAX_EXTRA_XML
@@ -190,11 +218,17 @@ class EpgSyncer:
                 return {"changed": False, "channels": 0, "error": [f"extra: HTTP {exc.code}"]}
             except Exception as exc:
                 return {"changed": False, "channels": 0, "error": [f"extra: {type(exc).__name__} {exc}"]}
+            now = int(time.time())
             with store.lock:
                 store.epg["extra"] = guide
-                store.epg_meta["etag"]["extra"] = response_headers.get("ETag")
-                store.epg_meta["updated"] = int(time.time())
-            self._extra_wanted = frozenset(wanted)
+                store.epg_meta["updated"] = now
+                store.epg_extra_meta = {
+                    "etag": response_headers.get("ETag"),
+                    "source": self.config.epg_extra_source,
+                    "wanted": sorted(wanted),
+                    "updated": now,
+                }
+            store.save_epg_extra()
             return {"changed": True, "channels": len(guide), "error": None}
 
     def refresh_soon(self) -> None:
@@ -215,14 +249,15 @@ class EpgSyncer:
                         log.info("guía de programación: %d canales", result["channels"])
                     self._next_due = time.time() + EPG_INTERVAL
             if self.config.epg_enabled and self.config.epg_extra_enabled and time.time() >= self._extra_due:
-                result = self.sync_extra(force=self._extra_due == 0.0)
+                result = self.sync_extra()
                 if result["error"]:
                     log.warning("guía extra: %s", "; ".join(result["error"]))
                     self._extra_due = time.time() + EPG_RETRY
                 else:
                     if result["changed"]:
                         log.info("guía extra: %d canales", result["channels"])
-                    self._extra_due = time.time() + EXTRA_INTERVAL
+                    # with nothing to read yet (the catalogue may still be loading) look again soon; no download
+                    self._extra_due = time.time() + (EXTRA_INTERVAL if self.extra_ids() else TICK_SECONDS)
             if stop.wait(TICK_SECONDS):
                 return
 
@@ -236,15 +271,24 @@ class EpgSyncer:
                     store.epg["tv"].get(epg_id)
                     or store.epg["radio"].get(epg_id)
                     or store.epg["extra"].get(epg_id)
+                    or store.epg["extra"].get(extra_epg_id(epg_id))
                     or []
                 )
                 return {"id": epg_id, "programmes": [p for p in items if p[1] > now][:40]}
             upcoming: dict[str, list[Programme]] = {}
-            for kind in ("tv", "radio", "extra"):
+            for kind in ("tv", "radio"):
                 for key, programmes in store.epg[kind].items():
                     head = [p[:3] for p in programmes if p[1] > now][:3]
                     if head:
                         upcoming[key] = head
+            for key, programmes in store.epg["extra"].items():
+                head = [p[:3] for p in programmes if p[1] > now][:3]
+                if not head:
+                    continue
+                upcoming.setdefault(key, head)
+                alias = EXTRA_EPG_ALIASES.get(key)  # the page asks with the channel's own guide id
+                if alias:
+                    upcoming.setdefault(alias, head)
             return {
                 "updated": store.epg_meta["updated"],
                 "checked": store.epg_meta["checked"],

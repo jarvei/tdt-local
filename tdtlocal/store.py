@@ -38,6 +38,17 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _cached_guide(raw: Any) -> dict[str, list[Programme]]:
+    """The channels of a cached guide, dropping entries that are not a list of programmes."""
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        key: [item for item in items if isinstance(item, list) and len(item) >= 5]
+        for key, items in raw.items()
+        if isinstance(key, str) and isinstance(items, list)
+    }
+
+
 def source_ok(channel: Channel, url: str, status: dict[str, dict]) -> bool | None:
     """Last health result of one source. YouTube, custom channels and lazy sources are never checked."""
     if is_youtube(url) or u7d.is_u7d(url) or is_tdtspain(url) or channel.get("custom"):
@@ -76,6 +87,8 @@ class Store:
         self.custom: list[Channel] = []
         self.epg: dict[str, dict[str, list[Programme]]] = {"tv": {}, "radio": {}, "extra": {}}
         self.epg_meta: dict[str, Any] = {"checked": None, "updated": None, "error": None, "etag": {}}
+        # The extra guide is big: persist it so a restart can revalidate with its ETag instead of downloading it.
+        self.epg_extra_meta: dict[str, Any] = {"etag": None, "source": "", "wanted": [], "updated": None}
         self.status: dict[str, dict] = {}  # stream url -> {ok, ts, ms | err}
         self.health: dict[str, Any] = {"running": False, "done": 0, "total": 0, "finished": None}
         self.logo_urls: set[str] = set()
@@ -114,7 +127,9 @@ class Store:
         with self.lock:
             for ch in self.all_channels():
                 for url in ch["sources"]:
-                    if not is_tdtspain(url):
+                    if is_youtube(url):
+                        self.net.allow("https://www.youtube.com/")  # the live resolver always reads this host
+                    elif not is_tdtspain(url):
                         self.net.allow(url)
                 if ch["logo"]:
                     self.logo_urls.add(ch["logo"])
@@ -129,6 +144,7 @@ class Store:
             "radio": d / "radio.json",
             "custom": d / "custom.json",
             "status": d / "status.json",
+            "epg_extra": d / "epg_extra.json",
         }
 
     def save_feed(self, kind: str) -> None:
@@ -145,6 +161,10 @@ class Store:
     def save_custom(self) -> None:
         with self.lock:
             write_json(self._paths["custom"], {"channels": self.custom})
+
+    def save_epg_extra(self) -> None:
+        with self.lock:
+            write_json(self._paths["epg_extra"], {"meta": self.epg_extra_meta, "guide": self.epg["extra"]})
 
     def load(self) -> None:
         """Load whatever was cached by a previous run. Missing or corrupt files are ignored."""
@@ -169,6 +189,19 @@ class Store:
         if status:
             self.status = status.get("status", {})
             self.health["finished"] = status.get("finished")
+        extra = read_json(paths["epg_extra"])
+        if extra:
+            self.epg["extra"] = _cached_guide(extra.get("guide"))
+            meta = extra.get("meta") if isinstance(extra.get("meta"), dict) else {}
+            wanted = meta.get("wanted")
+            self.epg_extra_meta = {
+                "etag": meta.get("etag") if isinstance(meta.get("etag"), str) else None,
+                "source": meta.get("source") if isinstance(meta.get("source"), str) else "",
+                "wanted": [w for w in wanted if isinstance(w, str)] if isinstance(wanted, list) else [],
+                "updated": meta.get("updated") if isinstance(meta.get("updated"), int) else None,
+            }
+            if self.epg_extra_meta["updated"] is not None:
+                self.epg_meta["updated"] = self.epg_extra_meta["updated"]
         self.rebuild_allowlists()
 
     # ---- custom channels
