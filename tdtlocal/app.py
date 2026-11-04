@@ -20,6 +20,7 @@ from .store import Store, channel_ok, source_ok
 from .stt import Transcriber
 from .u7d import U7d
 from .whisper_models import ModelDownloader
+from .youtube import YouTubeLive
 
 RESOLVE_TTL = 120.0  # a resolved URL is reused for this long: the DAI/Atresplayer tokens last minutes
 
@@ -38,6 +39,7 @@ class App:
         self.epg = EpgSyncer(config, self.store, self.net)
         self.health = HealthChecker(self.store, self.net, stop=self.stop)
         self.u7d = U7d(self.net, self._allow_cover)
+        self.youtube = YouTubeLive(self.net)
         self.scte = ScteWatcher(config, self.store, self.net)
         self.assistant = Assistant(config, self.store)
         self.transcriber = Transcriber(config)

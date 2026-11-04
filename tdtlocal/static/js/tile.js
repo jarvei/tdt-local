@@ -6,7 +6,7 @@ import { audioTarget, audioTouched } from './lib/adbreak.js';
 import { chainFor } from './audio.js';
 import { buildPlan, originNote, usesHls } from './lib/plan.js';
 import { atresEmbed } from './lib/embeds.js';
-import { ytEmbed } from './lib/youtube.js';
+import { ytEmbed, ytLive, ytVideoEmbed } from './lib/youtube.js';
 import { parseU7d } from './lib/u7d.js';
 
 const ATTEMPT_TIMEOUT_MS = 15000;
@@ -475,12 +475,15 @@ export class Tile {
     this.timer = setTimeout(fail, ATTEMPT_TIMEOUT_MS);
 
     const embed = ytEmbed(step.u);
+    const live = ytLive(step.u);
     const atres = atresEmbed(step.u);
     const u7d = parseU7d(step.u);
     if (String(step.u).startsWith('tdtspain://')) {
       this.attachTdtspain(step.u, s, { fail, success, lost, startPlay });
     } else if (u7d) {
       this.attachU7d(u7d, s, { fail, success, lost, startPlay });
+    } else if (live) {
+      this.attachYoutubeLive(c, step.u, s, { fail, success });
     } else if (embed) {
       this.attachYoutube(c, embed, success);
     } else if (atres) {
@@ -520,6 +523,26 @@ export class Tile {
         else this.attachDirect(url, s, handlers);
       })
       .catch((err) => { this.reason = String((err && err.message) || err); handlers.fail(); });
+  }
+
+  // YouTube's channel embed no longer starts and fixed live ids go stale: resolve the broadcast that is on air.
+  attachYoutubeLive(c, url, s, { fail, success }) {
+    fetch('/api/youtube/live?u=' + encodeURIComponent(url), { cache: 'no-store' })
+      .then((r) => r.json().then((d) => {
+        if (!r.ok || !d.id) throw new Error(d.error || 'sin directo');
+        return d.id;
+      }))
+      .then((id) => {
+        if (this.session !== s) return; // another channel was chosen meanwhile
+        const embed = ytVideoEmbed(id);
+        if (!embed) throw new Error('id de YouTube no válido');
+        this.attachYoutube(c, embed, success);
+      })
+      .catch((err) => {
+        if (this.session !== s) return;
+        this.reason = 'YouTube: ' + String((err && err.message) || err);
+        fail();
+      });
   }
 
   attachYoutube(c, embed, success) {

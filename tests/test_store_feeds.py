@@ -92,6 +92,8 @@ class StoreTests(AppCase):
         ]
         store.radios = [{"id": "r", "sources": ["https://s/r.mp3"], "fmts": ["mp3"], "logo": "", "kind": "radio"}]
         self.assertEqual(store.sources("tv"), {"https://s/a.m3u8": ""})
+        store.rebuild_allowlists()
+        self.assertTrue(store.net.is_allowed("www.youtube.com"))
         self.assertEqual(store.sources("radio"), {"https://s/r.mp3": "mp3"})
         self.assertEqual(len(store.sources("all")), 2)
 

@@ -10,7 +10,7 @@ import { fillAssignments, nextRotation } from '../../tdtlocal/static/js/lib/mosa
 import { buildPlan, canPlayFormat, originNote, usesHls } from '../../tdtlocal/static/js/lib/plan.js';
 import { initials, norm, slug } from '../../tdtlocal/static/js/lib/text.js';
 import { newestFirst, parseU7d, programmeChannel, whenLabel } from '../../tdtlocal/static/js/lib/u7d.js';
-import { ytEmbed } from '../../tdtlocal/static/js/lib/youtube.js';
+import { ytEmbed, ytLive, ytVideoEmbed } from '../../tdtlocal/static/js/lib/youtube.js';
 
 const ch = (id, name, extra = {}) => ({
   id, name, kind: 'tv', category: 'Nacionales', group: '', ok: null, sources: [{ u: `https://s/${id}.m3u8`, ok: null, f: '' }], ...extra,
@@ -23,16 +23,25 @@ test('text helpers', () => {
   assert.equal(initials('¡Ñ!'), 'Ñ');
 });
 
-test('ytEmbed recognises channel lives and videos, and nothing else', () => {
-  assert.equal(
-    ytEmbed('https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv/live'),
-    'https://www.youtube-nocookie.com/embed/live_stream?channel=UCabcdefghijklmnopqrstuv',
-  );
-  const video = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ';
-  assert.equal(ytEmbed('https://youtu.be/dQw4w9WgXcQ'), video);
-  assert.equal(ytEmbed('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), video);
-  assert.equal(ytEmbed('https://www.youtube.com/watch?feature=x&v=dQw4w9WgXcQ&t=1'), video);
-  assert.equal(ytEmbed('https://www.youtube.com/live/dQw4w9WgXcQ'), video);
+test('ytLive recognises channel lives and ytEmbed embeds videos', () => {
+  const embed = (id) => 'https://www.youtube-nocookie.com/embed/' + id;
+  assert.equal(ytLive('https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv/live'), true);
+  assert.equal(ytLive('https://www.youtube.com/@SkyNews/live'), true);
+  assert.equal(ytLive('https://www.youtube.com/@skynews/live?x=1'), true);
+  assert.equal(ytLive('https://www.youtube.com/@SkyNews'), false);
+  assert.equal(ytLive('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), false);
+  assert.equal(ytLive('https://www.youtube.com/live/dQw4w9WgXcQ'), true);
+  assert.equal(ytLive('https://www.youtube.com/live/dQw4w9WgXcQ?x=1'), true);
+  assert.equal(ytLive('https://example.com/@SkyNews/live'), false);
+  assert.equal(ytEmbed('https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv/live'), null);
+  assert.equal(ytEmbed('https://www.youtube.com/@SkyNews/live'), null);
+  assert.equal(ytEmbed('https://www.youtube.com/@un-canal-que-no-existe/live'), null);
+  assert.equal(ytVideoEmbed('dQw4w9WgXcQ'), embed('dQw4w9WgXcQ'));
+  assert.equal(ytVideoEmbed('no'), null);
+  assert.equal(ytEmbed('https://youtu.be/dQw4w9WgXcQ'), embed('dQw4w9WgXcQ'));
+  assert.equal(ytEmbed('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), embed('dQw4w9WgXcQ'));
+  assert.equal(ytEmbed('https://www.youtube.com/watch?feature=x&v=dQw4w9WgXcQ&t=1'), embed('dQw4w9WgXcQ'));
+  assert.equal(ytEmbed('https://www.youtube.com/live/dQw4w9WgXcQ'), null);
   assert.equal(ytEmbed('https://example.com/watch?v=dQw4w9WgXcQ'), null);
   assert.equal(ytEmbed('https://rtve.es/la1.m3u8'), null);
   assert.equal(ytEmbed(''), null);

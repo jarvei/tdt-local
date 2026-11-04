@@ -179,6 +179,8 @@ class Handler(BaseHTTPRequestHandler):
             self._u7d_play(arg("c", 30), arg("r", 100))
         elif path == "/api/tdtspain/play":
             self._tdtspain_play(arg("c", 100))
+        elif path == "/api/youtube/live":
+            self._youtube_live(arg("u", 300))
         elif path == "/proxy":
             self._proxy(arg("u", MAX_PROXY_URL + 1), arg("c", 100), arg("s", 40))
         elif path == "/logo":
@@ -357,6 +359,32 @@ class Handler(BaseHTTPRequestHandler):
             self._json(502, {"error": f"TDT Spain: {type(exc).__name__}: {exc}"})
             return
         self._json(200, out)
+
+    def _youtube_live(self, url: str) -> None:
+        """Resolve the current live video of a YouTube channel or a fixed live id.
+
+        YouTube's channel embed no longer starts.
+        """
+        if not url:
+            self._json(400, {"error": "falta u"})
+            return
+        try:
+            video = self.app.youtube.resolve(url)
+        except ValueError as exc:
+            self._json(404, {"error": str(exc)})
+            return
+        except Blocked as exc:
+            self._json(403, {"error": str(exc)})
+            return
+        except urllib.error.HTTPError as exc:
+            _close_quietly(exc)
+            self._json(502, {"error": f"YouTube: HTTP {exc.code}"})
+            return
+        except Exception as exc:
+            _close_quietly(exc)
+            self._json(502, {"error": f"YouTube: {type(exc).__name__}"})
+            return
+        self._json(200, {"id": video})
 
     def _proxy(self, url: str, channel_tag: str = "", session_tag: str = "") -> None:
         if not url or len(url) > MAX_PROXY_URL:

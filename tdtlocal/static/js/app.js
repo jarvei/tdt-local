@@ -20,7 +20,7 @@ import {
 import { fillAssignments, nextRotation } from './lib/mosaic.js';
 import { canPlayFormat } from './lib/plan.js';
 import { atresEmbed } from './lib/embeds.js';
-import { ytEmbed } from './lib/youtube.js';
+import { ytEmbed, ytLive } from './lib/youtube.js';
 import { isGuideOpen, syncGuide, toggleGuide } from './guide.js';
 import { store } from './store.js';
 import { TILES, channelEpgLine, cur, epgEntries, focusTile, nowTs, state } from './state.js';
@@ -96,7 +96,7 @@ function makeRow(c, i) {
   b.append(logo);
   const txt = el('span', 'txt');
   txt.append(el('span', 'name', c.name));
-  const embedName = (u) => (ytEmbed(u) ? 'YouTube' : atresEmbed(u) ? 'Atresplayer' : '');
+  const embedName = (u) => (ytEmbed(u) || ytLive(u) ? 'YouTube' : atresEmbed(u) ? 'Atresplayer' : '');
   const embedOnly = c.sources.length && c.sources.every((s) => embedName(s.u)) ? embedName(c.sources[0].u) : '';
   const sub = [c.group || (state.cat ? '' : c.category), c.sources.length ? '' : 'solo web', embedOnly]
     .filter(Boolean).join(' · ');

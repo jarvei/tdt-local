@@ -2,6 +2,7 @@ import json
 import time
 import urllib.error
 from unittest import mock
+from urllib.parse import quote
 
 from tdtlocal.config import PACKAGE_DIR, Config
 
@@ -205,6 +206,27 @@ class ApiTests(ServerCase):
         self.assertEqual(self.post_json("/api/stt", {"s": "abc", "on": True})[0], 404)
         status, data = self.get_json("/api/stt?s=abc&after=zz")
         self.assertEqual((status, data["active"]), (200, False))
+
+
+class YouTubeLiveApiTests(ServerCase):
+    URL = "https://www.youtube.com/@SkyNews/live"
+
+    def test_resolves_a_live_video(self):
+        with mock.patch.object(self.app.youtube, "resolve", return_value="WUTDiO_fXdE") as resolve:
+            status, data = self.get_json("/api/youtube/live?u=" + quote(self.URL, safe=""))
+        self.assertEqual((status, data), (200, {"id": "WUTDiO_fXdE"}))
+        resolve.assert_called_once_with(self.URL)
+
+    def test_missing_or_unresolvable_link(self):
+        self.assertEqual(self.get_json("/api/youtube/live")[0], 400)
+        with mock.patch.object(self.app.youtube, "resolve", side_effect=ValueError("sin directo")):
+            status, data = self.get_json("/api/youtube/live?u=" + quote(self.URL, safe=""))
+        self.assertEqual((status, data["error"]), (404, "sin directo"))
+
+    def test_upstream_failure_is_a_bad_gateway(self):
+        with mock.patch.object(self.app.youtube, "resolve", side_effect=OSError("boom")):
+            status, data = self.get_json("/api/youtube/live?u=" + quote(self.URL, safe=""))
+        self.assertEqual((status, data["error"]), (502, "YouTube: OSError"))
 
 
 class AssistantApiTests(ServerCase):
